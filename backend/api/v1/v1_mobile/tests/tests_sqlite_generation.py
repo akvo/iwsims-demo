@@ -16,14 +16,14 @@ from utils.custom_generator import generate_sqlite, update_sqlite
 
 class SQLiteGenerationTest(TestCase):
     def setUp(self):
-        call_command("administration_seeder")
+        call_command("administration_seeder", "--test")
         call_command("organisation_seeder", "--test")
         self.administration = Administration.objects.all()
         self.organization = Organisation.objects.all()
 
     def test_generate_sqlite(self):
         # Test for Organisation
-        file_name = generate_sqlite(Organisation)
+        file_name = generate_sqlite(Organisation, test=True)
         self.assertTrue(os.path.exists(file_name))
         conn = sqlite3.connect(file_name)
         self.assertEqual(
@@ -34,7 +34,7 @@ class SQLiteGenerationTest(TestCase):
         os.remove(file_name)
 
         # Test for Administration
-        file_name = generate_sqlite(Administration)
+        file_name = generate_sqlite(Administration, test=True)
         self.assertTrue(os.path.exists(file_name))
         conn = sqlite3.connect(file_name)
         self.assertEqual(
@@ -45,14 +45,14 @@ class SQLiteGenerationTest(TestCase):
         os.remove(file_name)
 
     def test_sqlite_generation_command(self):
-        call_command("generate_sqlite")
-        generated_administration_sqlite = f"{MASTER_DATA}/administrator.sqlite"
-        generated_organisation_sqlite = f"{MASTER_DATA}/organisation.sqlite"
-        self.assertTrue(os.path.exists(generated_administration_sqlite))
-        self.assertTrue(os.path.exists(generated_organisation_sqlite))
+        call_command("generate_sqlite", "--test", True)
+        output_1 = f"{MASTER_DATA}/test_administrator.sqlite"
+        output_2 = f"{MASTER_DATA}/test_organisation.sqlite"
+        self.assertTrue(os.path.exists(output_1))
+        self.assertTrue(os.path.exists(output_2))
 
     def test_sqlite_file_endpoint(self):
-        file_name = generate_sqlite(Administration)
+        file_name = generate_sqlite(Administration, test=True)
         self.assertTrue(os.path.exists(file_name))
         conn = sqlite3.connect(file_name)
         self.assertEqual(
@@ -67,12 +67,15 @@ class SQLiteGenerationTest(TestCase):
 
     def test_update_sqlite_org_added(self):
         # Test for adding new org
-        file_name = generate_sqlite(Organisation)
+        file_name = generate_sqlite(Organisation, test=True)
         self.assertTrue(os.path.exists(file_name))
 
         org = Organisation.objects.create(name="SQLite Company")
         update_sqlite(
-            model=Organisation, data={"id": org.id, "name": org.name}
+            model=Organisation,
+            data={"id": org.id, "name": org.name},
+            id=None,
+            test=True,
         )
         conn = sqlite3.connect(file_name)
         self.assertEqual(
@@ -88,7 +91,7 @@ class SQLiteGenerationTest(TestCase):
 
     def test_update_sqlite_org_updated(self):
         # Test for adding new org
-        file_name = generate_sqlite(Organisation)
+        file_name = generate_sqlite(Organisation, test=True)
         self.assertTrue(os.path.exists(file_name))
 
         new_org_name = "Edited Company"
@@ -96,7 +99,10 @@ class SQLiteGenerationTest(TestCase):
         org.name = new_org_name
         org.save()
         update_sqlite(
-            model=Organisation, data={"name": new_org_name}, id=org.id
+            model=Organisation,
+            data={"name": new_org_name},
+            id=org.id,
+            test=True,
         )
 
         conn = sqlite3.connect(file_name)
@@ -115,7 +121,7 @@ class SQLiteGenerationTest(TestCase):
 
     def test_update_sqlite_with_no_nodes_table(self):
         # Test for adding new org
-        file_name = generate_sqlite(Organisation)
+        file_name = generate_sqlite(Organisation, test=True)
         self.assertTrue(os.path.exists(file_name))
 
         # delete node table
@@ -136,9 +142,12 @@ class SQLiteGenerationTest(TestCase):
         org.name = new_org_name
         org.save()
         update_sqlite(
-            model=Organisation, data={"name": new_org_name}, id=org.id
+            model=Organisation,
+            data={"name": new_org_name},
+            id=org.id,
+            test=True,
         )
-
+        print("SQLite file name:", file_name)
         conn = sqlite3.connect(file_name)
         self.assertEqual(
             1,
@@ -218,7 +227,7 @@ class EntitiesSQLiteGenerationTest(TestCase):
         os.remove(file_name)
 
     def test_generate_entity_data(self):
-        file_name = generate_sqlite(EntityData)
+        file_name = generate_sqlite(EntityData, test=True)
         self.assertTrue(os.path.exists(file_name))
         conn = sqlite3.connect(file_name)
         df = pd.read_sql_query("SELECT * FROM nodes", conn)
@@ -230,8 +239,8 @@ class EntitiesSQLiteGenerationTest(TestCase):
         os.remove(file_name)
 
     def test_sqlite_generation_command(self):
-        call_command("generate_sqlite")
-        generated_entity_sqlite = f"{MASTER_DATA}/entities.sqlite"
-        generated_entity_data_sqlite = f"{MASTER_DATA}/entity_data.sqlite"
+        call_command("generate_sqlite", "--test", True)
+        generated_entity_sqlite = f"{MASTER_DATA}/test_entities.sqlite"
+        generated_entity_data_sqlite = f"{MASTER_DATA}/test_entity_data.sqlite"
         self.assertTrue(os.path.exists(generated_entity_sqlite))
         self.assertTrue(os.path.exists(generated_entity_data_sqlite))

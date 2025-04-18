@@ -1,62 +1,37 @@
-import uuid
 import re
+import random
 from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
-from faker import Faker
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from api.v1.v1_forms.models import Forms
+from api.v1.v1_forms.models import Forms, FormApprovalAssignment
 from api.v1.v1_forms.constants import FormTypes, SubmissionTypes
-from api.v1.v1_profile.models import Access, Levels, Administration
-from api.v1.v1_profile.constants import UserRoleTypes
-from api.v1.v1_users.models import SystemUser
+from api.v1.v1_profile.models import Administration
 from api.v1.v1_data.models import FormData, PendingFormData, \
     Answers, PendingAnswers
-
-fake = Faker()
-
-
-def create_user(role_level):
-    profile = fake.profile()
-    name = profile.get("name")
-    email = ("{}@test.com").format(
-        re.sub('[^A-Za-z0-9]+', '', name.lower()))
-    email = "{}_{}".format(str(uuid.uuid4())[:4], email)
-    name = name.split(" ")
-    roles = [
-        UserRoleTypes.super_admin, UserRoleTypes.admin,
-        UserRoleTypes.approver, UserRoleTypes.user
-    ]
-    user = SystemUser.objects.create(
-        email=email,
-        first_name=name[0],
-        last_name=name[1],
-        phone_number=fake.msisdn(),
-        designation=profile.get('job')[:49])
-    user.set_password('Test105*')
-    user.save()
-    level = Levels.objects.filter(level=role_level).first()
-    Access.objects.create(
-        user=user,
-        role=roles[role_level],
-        administration=Administration.objects.filter(
-            level=level).order_by('?').first())
-    return user
+from api.v1.v1_profile.tests.mixins import ProfileTestHelperMixin
 
 
 @override_settings(USE_TZ=False)
-class AddNewDataTestCase(TestCase):
-    def test_add_new_data_by_super_admin(self):
+class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
+    def setUp(self):
+        super().setUp()
         call_command("administration_seeder", "--test")
-        user = {"email": "admin@rush.com", "password": "Test105*"}
-        user = self.client.post('/api/v1/login',
-                                user,
-                                content_type='application/json')
-        user = user.json()
-        token = user.get("token")
-        self.assertTrue(token)
-
         call_command("form_seeder", "--test")
+        call_command("demo_approval_flow", "--test", True)
+
+    def test_add_new_data_by_super_admin(self):
+        adm = Administration.objects.filter(parent__isnull=True).first()
+        adm_name = re.sub("[^A-Za-z0-9]+", "", adm.name.lower())
+        user = self.create_user(
+            email="{0}.1@test.com".format(adm_name),
+            role_level=self.ROLE_SUPER_ADMIN,
+            administration=adm,
+        )
+        t = RefreshToken.for_user(user)
+        token = t.access_token
+        self.assertTrue(token)
         form = Forms.objects.first()
         self.assertEqual(form.id, 1)
         self.assertEqual(form.name, "Test Form")
@@ -122,19 +97,25 @@ class AddNewDataTestCase(TestCase):
                 self.assertEqual(d.get('value'), 0)
 
     def test_add_new_data_by_county_admin(self):
-        call_command("administration_seeder", "--test")
         adm = Administration.objects.filter(level__level=1).first()
-
-        user = create_user(1)
-        user = {"email": user.email, "password": "Test105*"}
-        user = self.client.post('/api/v1/login',
-                                user,
-                                content_type='application/json')
-        user = user.json()
-        token = user.get("token")
+        adm_name = re.sub("[^A-Za-z0-9]+", "", adm.name.lower())
+        email = ("{0}.{1}@test.com").format(
+            adm_name,
+            random.randint(1, 10)
+        )
+        user = self.create_user(
+            email=email,
+            role_level=self.ROLE_ADMIN,
+            administration=adm,
+        )
+        # login
+        auth_res = self.client.post(
+            '/api/v1/login',
+            {"email": user.email, "password": "password"},
+            content_type='application/json'
+        )
+        token = auth_res.json().get("token")
         self.assertTrue(token)
-
-        call_command("form_seeder", "--test")
 
         # county form
         form = Forms.objects.first()
@@ -172,11 +153,12 @@ class AddNewDataTestCase(TestCase):
                 "value": 2.5
             }]
         }
-        data = self.client.post('/api/v1/form-pending-data/{0}'
-                                .format(form_id),
-                                payload,
-                                content_type='application/json',
-                                **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
+        data = self.client.post(
+            '/api/v1/form-pending-data/{0}'.format(form_id),
+            payload,
+            content_type='application/json',
+            **{'HTTP_AUTHORIZATION': f'Bearer {token}'}
+        )
         self.assertEqual(data.status_code, 200)
         data = data.json()
         self.assertEqual(data, {"message": "ok"})
@@ -188,10 +170,11 @@ class AddNewDataTestCase(TestCase):
         answers = Answers.objects.filter(data_id=form_data.id).count()
         self.assertGreater(answers, 0)
         # check administration answer value as integer
-        data = self.client.get('/api/v1/data/{0}'
-                               .format(form_data.id),
-                               content_type='application/json',
-                               **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
+        data = self.client.get(
+            '/api/v1/data/{0}'.format(form_data.id),
+            content_type='application/json',
+            **{'HTTP_AUTHORIZATION': f'Bearer {token}'}
+        )
         self.assertEqual(data.status_code, 200)
         data = data.json()
         for d in data:
@@ -203,7 +186,24 @@ class AddNewDataTestCase(TestCase):
 
         # national form
         form = Forms.objects.filter(
-            type=FormTypes.national).first()
+            type=FormTypes.national
+        ).first()
+
+        # Add national approver
+        national_adm = Administration.objects.filter(
+            level__level=0
+        ).first()
+        super_approver = self.create_user(
+            email="supeer.approver@test.com",
+            role_level=self.ROLE_APPROVER,
+            administration=national_adm,
+        )
+        FormApprovalAssignment.objects.create(
+            form=form,
+            administration=national_adm,
+            user=super_approver
+        )
+
         self.assertEqual(form.id, 2)
         self.assertEqual(form.name, "Test Form 2")
         self.assertEqual(form.type, FormTypes.national)
@@ -235,11 +235,12 @@ class AddNewDataTestCase(TestCase):
                 "value": ["Parent", "Children"]
             }]
         }
-        data = self.client.post('/api/v1/form-pending-data/{0}'
-                                .format(form_id),
-                                payload,
-                                content_type='application/json',
-                                **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
+        data = self.client.post(
+            '/api/v1/form-pending-data/{0}'.format(form_id),
+            payload,
+            content_type='application/json',
+            **{'HTTP_AUTHORIZATION': f'Bearer {token}'}
+        )
         self.assertEqual(data.status_code, 200)
         data = data.json()
         self.assertEqual(data, {"message": "ok"})
@@ -254,23 +255,31 @@ class AddNewDataTestCase(TestCase):
         self.assertEqual(form_data, 0)
 
     def test_add_new_data_by_data_entry(self):
-        call_command("administration_seeder", "--test")
-        user = create_user(3)
-        user = {"email": user.email, "password": "Test105*"}
-        user = self.client.post('/api/v1/login',
-                                user,
-                                content_type='application/json')
-        user = user.json()
-        token = user.get("token")
+        adm = Administration.objects.last()
+        adm_name = re.sub("[^A-Za-z0-9]+", "", adm.name.lower())
+        email = ("{0}.{1}@test.com").format(
+            adm_name,
+            random.randint(1, 10)
+        )
+        user = self.create_user(
+            email=email,
+            role_level=self.ROLE_USER,
+            administration=adm,
+        )
+        auth_res = self.client.post(
+            '/api/v1/login',
+            {"email": user.email, "password": "password"},
+            content_type='application/json'
+        )
+        token = auth_res.json().get("token")
         self.assertTrue(token)
 
-        call_command("form_seeder", "--test")
         form = Forms.objects.first()
         self.assertEqual(form.id, 1)
         self.assertEqual(form.name, "Test Form")
         self.assertEqual(form.type, FormTypes.county)
         form_id = form.id
-        adm = Administration.objects.filter(level__level=1).first()
+
         payload = {
             "data": {
                 "name": "Testing Data Entry",
@@ -316,17 +325,22 @@ class AddNewDataTestCase(TestCase):
         self.assertGreater(pending_answers, 0)
 
     def test_add_new_data_by_data_entry_with_some_empty_values(self):
-        call_command("administration_seeder", "--test")
-        user = create_user(3)
-        user = {"email": user.email, "password": "Test105*"}
-        user = self.client.post('/api/v1/login',
-                                user,
-                                content_type='application/json')
-        user = user.json()
-        token = user.get("token")
+        adm = Administration.objects.filter(level__gt=1).order_by('?').first()
+        adm_name = re.sub("[^A-Za-z0-9]+", "", adm.name.lower())
+        user = self.create_user(
+            email="{}.emtpy@test.com".format(adm_name),
+            role_level=self.ROLE_USER,
+            administration=adm,
+        )
+        # login
+        auth_res = self.client.post(
+            '/api/v1/login',
+            {"email": user.email, "password": "password"},
+            content_type='application/json'
+        )
+        token = auth_res.json().get("token")
         self.assertTrue(token)
 
-        call_command("form_seeder", "--test")
         form = Forms.objects.first()
         self.assertEqual(form.id, 1)
         self.assertEqual(form.name, "Test Form")

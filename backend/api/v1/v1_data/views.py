@@ -703,7 +703,9 @@ class BatchView(APIView):
         summary="To create batch",
     )
     def post(self, request, version):
-        serializer = CreateBatchSerializer(data=request.data)
+        serializer = CreateBatchSerializer(
+            data=request.data, context={"user": request.user}
+        )
         if not serializer.is_valid():
             return Response(
                 {"message": validate_serializers_message(serializer.errors)},

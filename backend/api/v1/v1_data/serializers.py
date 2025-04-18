@@ -920,12 +920,37 @@ class CreateBatchSerializer(serializers.Serializer):
             raise ValidationError("name has already been taken")
         return name
 
+    def validate_data(self, data):
+        if len(data) == 0:
+            raise ValidationError("No data found for this batch")
+        return data
+
     def validate(self, attrs):
+        if len(attrs.get("data")) == 0:
+            raise ValidationError(
+                {"data": "No form found for this batch"}
+            )
         form = attrs.get("data")[0].form
+        # Get the list of administrations that the user has access to
+        adms = [
+            ac.pk
+            for ac in self.context.get("user")
+            .user_access.administration.ancestors
+        ]
+        adms += [
+            self.context.get("user").user_access.administration.pk
+        ]
+        # Check if the form has any approvers in the user's administration
+        if not form.form_data_approval.filter(
+            administration__pk__in=adms
+        ).exists():
+            raise ValidationError(
+                {"data": "No approvers found for this batch"}
+            )
         for pending in attrs.get("data"):
             if pending.form_id != form.id:
                 raise ValidationError(
-                    {"data": "Form id is different for provided data"}
+                    {"data": "No approvers found for this batch"}
                 )
         return attrs
 
@@ -1122,7 +1147,25 @@ class SubmitPendingFormSerializer(serializers.Serializer):
             and data["form"].type == FormTypes.county
         )
 
-        direct_to_data = is_super_admin or is_county_admin
+        is_national_user = user.user_access.administration.parent is None
+        direct_to_data = is_super_admin or is_county_admin or is_national_user
+        # check if the form has any approvers in the user's administration
+        # if no approvers found, save directly to form data
+        if not direct_to_data:
+            adms = (
+                [
+                    ac.pk
+                    for ac in user.user_access.administration.ancestors
+                ] + [
+                    user.user_access.administration.pk
+                ]
+            )
+            form_approval = FormApprovalAssignment.objects.filter(
+                form=data["form"],
+                administration__pk__in=adms
+            ).exists()
+            if not form_approval:
+                direct_to_data = True
 
         # save to pending data
         if not direct_to_data:

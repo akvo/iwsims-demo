@@ -18,14 +18,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         for r in range(options.get("repeat")):
-            organisation = Organisation.objects.create(name=fake.company())
-            organisation.save()
-            if organisation.id == 1:
-                organisation.name = "Akvo"
-                organisation.save()
+            organisation, _ = Organisation.objects.update_or_create(
+                name=fake.company() if r != 0 else "Akvo",
+            )
             org_types = [
                 OrganisationTypes.member, OrganisationTypes.partnership
             ]
             for org_type in org_types:
-                OrganisationAttribute.objects.create(organisation=organisation,
-                                                     type=org_type)
+                OrganisationAttribute.objects.update_or_create(
+                    organisation=organisation,
+                    type=org_type
+                )

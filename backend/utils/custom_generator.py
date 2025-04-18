@@ -8,11 +8,15 @@ from api.v1.v1_profile.models import Administration
 logger = logging.getLogger(__name__)
 
 
-def generate_sqlite(model):
+def generate_sqlite(model, test: bool = False):
     table_name = model._meta.db_table
     field_names = [f.name for f in model._meta.fields]
     objects = model.objects.all()
-    file_name = f"{MASTER_DATA}/{table_name}.sqlite"
+    file_name = "{0}/{1}{2}.sqlite".format(
+        MASTER_DATA,
+        "test_" if test else "",
+        table_name,
+    )
     if os.path.exists(file_name):
         os.remove(file_name)
     data = pd.DataFrame(list(objects.values(*field_names)))
@@ -35,7 +39,7 @@ def generate_sqlite(model):
     return file_name
 
 
-def update_sqlite(model, data, id=None):
+def update_sqlite(model, data, id=None, test: bool = False):
     table_name = model._meta.db_table
     fields = data.keys()
     field_names = ", ".join([f for f in fields])
@@ -44,7 +48,11 @@ def update_sqlite(model, data, id=None):
     params = list(data.values())
     if id:
         params += [id]
-    file_name = f"{MASTER_DATA}/{table_name}.sqlite"
+    file_name = "{0}/{1}{2}.sqlite".format(
+        MASTER_DATA,
+        "test_" if test else "",
+        table_name,
+    )
     conn = sqlite3.connect(file_name)
     try:
         with conn:
@@ -60,7 +68,7 @@ def update_sqlite(model, data, id=None):
                     VALUES ({placeholders})"
                 c.execute(query, params)
     except sqlite3.OperationalError:
-        generate_sqlite(model=model)
+        generate_sqlite(model=model, test=test)
     except Exception as error:
         logger.error(
             {

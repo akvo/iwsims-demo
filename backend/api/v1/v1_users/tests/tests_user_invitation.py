@@ -562,7 +562,7 @@ class UserInvitationTestCase(TestCase):
         token = user.get('token')
         header = {'HTTP_AUTHORIZATION': f'Bearer {token}'}
         call_command("fake_user_seeder")
-        call_command("demo_approval_flow")
+        call_command("demo_approval_flow", "--test", True)
         u = SystemUser.objects.filter(
             user_access__role__in=[
                 UserRoleTypes.approver, UserRoleTypes.user],

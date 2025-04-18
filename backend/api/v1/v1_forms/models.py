@@ -190,7 +190,7 @@ class QuestionOptions(models.Model):
     color = models.TextField(default=None, null=True)
 
     def __str__(self):
-        return self.name
+        return self.value
 
     class Meta:
         unique_together = ("question", "value")

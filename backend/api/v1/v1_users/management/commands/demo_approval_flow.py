@@ -13,10 +13,9 @@ fake = Faker()
 
 
 def create_approver(form, administration, organisation):
-    email = ("{}{}.{}@approver.com").format(
+    email = ("{0}.{1}@test.com").format(
         re.sub('[^A-Za-z0-9]+', '', administration.name.lower()),
-        administration.id,
-        random.randint(1, 1000)
+        random.randint(10, 100)
     )
     last_name = "Approver"
     role = UserRoleTypes.approver
@@ -25,13 +24,13 @@ def create_approver(form, administration, organisation):
         last_name = "Admin"
     # check if someone has access to ancestor adminisration
     approver, created = SystemUser.objects.get_or_create(
-        organisation=organisation,
         email=email,
-        first_name=administration.name,
-        last_name=last_name
     )
     if created:
         approver.set_password("test")
+        approver.organisation = organisation
+        approver.first_name = administration.name
+        approver.last_name = last_name
         approver.phone_number = fake.msisdn()
         approver.designation = fake.random_element(
             elements=UserDesignationTypes.FieldStr.keys()
@@ -103,19 +102,20 @@ class Command(BaseCommand):
                             last_name
                         ))
                 # create user
-                email = ("{}{}@user.com").format(
-                        re.sub(
-                            '[^A-Za-z0-9]+', '', administration.name.lower()
-                        ),
-                        administration.id
-                    )
+                email = "{0}.{1}@test.com".format(
+                    re.sub(
+                        '[^A-Za-z0-9]+', '', administration.name.lower()
+                    ),
+                    random.randint(200, 300)
+                )
                 submitter, created = SystemUser.objects.get_or_create(
-                    organisation=organisation,
                     email=email,
-                    first_name=administration.name,
-                    last_name="User")
+                )
                 if created:
                     submitter.set_password("test")
+                    submitter.organisation = organisation
+                    submitter.first_name = administration.name
+                    submitter.last_name = "User"
                     submitter.phone_number = fake.msisdn()
                     submitter.designation = UserDesignationTypes.sa
                     submitter.save()

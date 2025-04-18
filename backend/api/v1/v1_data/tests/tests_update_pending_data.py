@@ -2,28 +2,38 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.db.models import ProtectedError
 
-from api.v1.v1_data.tests.tests_add_new_data import create_user
 from api.v1.v1_data.models import Forms, FormData, PendingFormData, \
     PendingAnswers, PendingAnswerHistory
 from api.v1.v1_forms.constants import FormTypes, SubmissionTypes
 from api.v1.v1_users.models import SystemUser
 from api.v1.v1_profile.models import Administration
+from api.v1.v1_profile.tests.mixins import ProfileTestHelperMixin
 
 
-class UpdatePendingDataTestCase(TestCase):
-    def test_update_pending_data(self):
+class UpdatePendingDataTestCase(TestCase, ProfileTestHelperMixin):
+    def setUp(self):
+        super().setUp()
         call_command("administration_seeder", "--test")
-        user = create_user(3)
+        call_command("form_seeder", "--test")
+        call_command("demo_approval_flow", "--test", True)
+
+    def test_update_pending_data(self):
+        adm = Administration.objects.last()
+
+        user = self.create_user(
+            email="data-entry.999@test.com",
+            role_level=self.ROLE_USER,
+            administration=adm,
+        )
         user_id = user.id
-        user = {"email": user.email, "password": "Test105*"}
-        user = self.client.post('/api/v1/login',
-                                user,
-                                content_type='application/json')
-        user = user.json()
-        token = user.get("token")
+        auth_res = self.client.post(
+            '/api/v1/login',
+            {"email": user.email, "password": "password"},
+            content_type='application/json'
+        )
+        token = auth_res.json().get("token")
         self.assertTrue(token)
 
-        call_command("form_seeder", "--test")
         form = Forms.objects.first()
         self.assertEqual(form.id, 1)
         self.assertEqual(form.name, "Test Form")
@@ -31,7 +41,6 @@ class UpdatePendingDataTestCase(TestCase):
         form_id = form.id
 
         # Add pending data
-        adm = Administration.objects.filter(level__level=1).first()
         payload = {
             "data": {
                 "name": "Testing Data Entry",
@@ -62,11 +71,12 @@ class UpdatePendingDataTestCase(TestCase):
                 "value": 0
             }]
         }
-        data = self.client.post('/api/v1/form-pending-data/{0}'
-                                .format(form_id),
-                                payload,
-                                content_type='application/json',
-                                **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
+        data = self.client.post(
+            '/api/v1/form-pending-data/{0}'.format(form_id),
+            payload,
+            content_type='application/json',
+            **{'HTTP_AUTHORIZATION': f'Bearer {token}'}
+        )
         self.assertEqual(data.status_code, 200)
         data = data.json()
         self.assertEqual(data, {"message": "ok"})

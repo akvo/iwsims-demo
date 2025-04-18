@@ -15,16 +15,19 @@ class MobileAssignmentApiSyncTest(TestCase, AssignmentTokenTestHelperMixin):
     def setUp(self):
         call_command("administration_seeder", "--test")
         call_command("form_seeder", "--test")
+        call_command("demo_approval_flow", "--test", True)
+
         self.user = SystemUser.objects.create_user(
             email="test@test.org",
             password="test1234",
             first_name="test",
             last_name="testing",
         )
-        self.administration = Administration.objects.filter(
-            parent__isnull=True
-        ).first()
-        self.administration2 = Administration.objects.last()
+        adm1, adm2 = Administration.objects.filter(
+            level__gt=0
+        ).all()[:2]
+        self.administration = adm1
+        self.administration2 = adm2
         self.form = Forms.objects.first()
 
         role = UserRoleTypes.user
