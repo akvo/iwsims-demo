@@ -83,6 +83,12 @@ const TypeCascade = ({
       cascadeParent === 'administrator.sqlite' ? prevAdmAnswer || [] : parentId || [0];
     const filterDs = dataSource
       ?.filter((ds) => {
+        if (cascadeType && ds?.entity) {
+          return ds.entity === cascadeType;
+        }
+        return ds;
+      })
+      ?.filter((ds) => {
         if (cascadeParent) {
           return parentIDs.includes(ds?.parent);
         }
@@ -92,12 +98,6 @@ const TypeCascade = ({
           value?.includes(ds?.id) ||
           value?.includes(ds?.parent)
         );
-      })
-      ?.filter((ds) => {
-        if (cascadeType && ds?.entity) {
-          return ds.entity === cascadeType;
-        }
-        return ds;
       });
 
     if (cascadeParent === 'administrator.sqlite') {
@@ -147,13 +147,26 @@ const TypeCascade = ({
         value: answer,
       };
     });
-  }, [dataSource, cascadeParent, cascadeType, parentId, value, prevAdmAnswer]);
+  }, [dataSource, cascadeParent, cascadeType, parentId, prevAdmAnswer, value]);
 
-  const fetchCascade = useCallback(async () => {
+  const loadCascadeData = useCallback(async () => {
+    const [rows, _db] = await cascades.loadDataSource(source);
+    setDataSource(rows);
+    // Close database connection
+    await _db.closeAsync();
+
+    // Update entity options if cascadeType is defined
+    if (cascadeType) {
+      FormState.update((s) => {
+        s.entityOptions[id] = rows?.filter((a) => a?.entity === cascadeType);
+      });
+    }
+
+    // Find and update cascade name if value exists
     if (source && value?.length) {
       const cascadeID = value.slice(-1)[0];
-      const rows = await cascades.loadDataSource(source, cascadeID);
-      const csValue = rows?.[0];
+      // Filter rows with cascadeID instead of making another loadDataSource call
+      const csValue = rows?.find((row) => row.id === cascadeID);
       if (csValue) {
         FormState.update((s) => {
           s.cascades = {
@@ -163,11 +176,11 @@ const TypeCascade = ({
         });
       }
     }
-  }, [source, value, id]);
+  }, [source, value, id, cascadeType]);
 
   useEffect(() => {
-    fetchCascade();
-  }, [fetchCascade]);
+    loadCascadeData();
+  }, [loadCascadeData]);
 
   useEffect(() => {
     if (
@@ -179,21 +192,7 @@ const TypeCascade = ({
        */
       setDropdownItems(initialDropdowns);
     }
-  }, [dropdownItems, initialDropdowns, source, prevAdmAnswer]);
-
-  const loadDataSource = useCallback(async () => {
-    const rows = await cascades.loadDataSource(source);
-    setDataSource(rows);
-    if (cascadeType) {
-      FormState.update((s) => {
-        s.entityOptions[id] = rows?.filter((a) => a?.entity === cascadeType);
-      });
-    }
-  }, [cascadeType, source, id]);
-
-  useEffect(() => {
-    loadDataSource();
-  }, [loadDataSource]);
+  }, [dropdownItems, initialDropdowns, dataSource, prevAdmAnswer, id, source]);
 
   const handleDefaultValue = useCallback(() => {
     if (typeof value?.[0] === 'string' && dropdownItems.length) {

@@ -35,8 +35,9 @@ const SubtitleContent = ({ index, answers, type, id, source = null, option = [] 
   const fetchCascade = useCallback(async () => {
     if (source) {
       const cascadeID = parseInt(answers?.[id], 10);
-      const csValue = await cascades.loadDataSource(source, cascadeID);
+      const [csValue, db] = await cascades.loadDataSource(source, cascadeID);
       setCascadeValue(csValue);
+      await db.closeAsync();
     }
   }, [answers, id, source]);
 
@@ -148,7 +149,10 @@ const FormDataDetails = ({ navigation, route }) => {
               );
             }
           }
-          if (q.type === QUESTION_TYPES.photo && currentValues?.[q.id]) {
+          if (
+            [QUESTION_TYPES.photo, QUESTION_TYPES.signature].includes(q.type) &&
+            currentValues?.[q.id]
+          ) {
             return (
               <ImageView
                 key={q.id}

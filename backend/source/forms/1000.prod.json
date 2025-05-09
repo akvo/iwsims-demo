@@ -80,7 +80,7 @@
 					"extra": {
 						"type": "entity",
 						"name": "Rural Water Supply",
-						"parentId": 1004
+						"parentId": 1003
 					},
 					"disabled": {
 						"submission_type": ["monitoring"]

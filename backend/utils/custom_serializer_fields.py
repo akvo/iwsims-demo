@@ -252,92 +252,21 @@ class UnvalidatedField(Field):
 
 
 def validate_serializers_message(errors):
-    msg = []
-    if isinstance(errors, dict):
-        for k, v in errors.items():
-            if isinstance(v, list):
-                for val in v:
-                    if isinstance(val, dict):
-                        for ik, iv in val.items():
-                            for viv in iv:
-                                if isinstance(viv, dict):
-                                    for xk, xv in viv.items():
-                                        for xvv in xv:
-                                            msg.append(
-                                                xvv.replace(
-                                                    "field_title",
-                                                    key_map.get(xk, xk),
-                                                )
-                                            )
-                                else:
-                                    msg.append(
-                                        viv.replace(
-                                            "field_title", key_map.get(ik, ik)
-                                        )
-                                    )
-                    else:
-                        msg.append(
-                            val.replace("field_title", key_map.get(k, k))
-                        )
+    def extract_messages(error_obj, key=None):
+        msgs = []
+        if isinstance(error_obj, dict):
+            for k, v in error_obj.items():
+                msgs.extend(extract_messages(v, k))
+        elif isinstance(error_obj, list):
+            for item in error_obj:
+                msgs.extend(extract_messages(item, key))
+        elif isinstance(error_obj, str):
+            replacement = key_map.get(key, key) if key else key
+            if replacement:
+                msgs.append(error_obj.replace("field_title", replacement))
             else:
-                for k1, v1 in v.items():
-                    if isinstance(v1, list):
-                        for val1 in v1:
-                            msg.append(
-                                val1.replace(
-                                    "field_title",
-                                    key_map.get(str(k1), str(k1)),
-                                )
-                            )
-                    else:
-                        for key2, val2 in v1.items():
-                            for val3 in val2:
-                                msg.append(
-                                    val3.replace(
-                                        "field_title",
-                                        key_map.get(str(k1), str(k1)),
-                                    )
-                                )
-    else:
-        for v in errors:
-            if isinstance(v, list):
-                for val in v:
-                    for ik, iv in val.items():
-                        for viv in iv:
-                            msg.append(
-                                viv.replace("field_title", key_map.get(ik, ik))
-                            )
+                msgs.append(error_obj)
+        return msgs
 
-            else:
-                for k1, v1 in v.items():
-                    if isinstance(v1, dict):
-
-                        for k1k1, v1v1 in v1.items():
-                            for v1v1v in v1v1:
-                                msg.append(
-                                    v1v1v.replace(
-                                        "field_title",
-                                        key_map.get(k1k1, str(k1k1)),
-                                    )
-                                )
-                    else:
-
-                        for val1 in v1:
-                            if isinstance(val1, dict):
-                                for xk1, xv1 in val1.items():
-                                    for xvv1 in xv1:
-                                        msg.append(
-                                            xvv1.replace(
-                                                "field_title",
-                                                key_map.get(xk1, xk1),
-                                            )
-                                        )
-                            else:
-                                msg.append(
-                                    val1.replace(
-                                        "field_title",
-                                        key_map.get(str(k1), str(k1)),
-                                    )
-                                )
-
+    msg = extract_messages(errors)
     return "|".join(msg)

@@ -118,6 +118,11 @@ const uiText = {
     newVersionAvailable: 'New version available.',
     attachButton: 'Attach File',
     openFileButton: 'Open File',
+    signHereText: 'Sign here',
+    clearText: 'Clear',
+    confirmText: 'Apply signature',
+    openSignatureButton: 'Open Signature Pad',
+    changeSignatureButton: 'Change Signature',
   },
   fr: {
     latitude: 'Latitude',
@@ -230,6 +235,11 @@ const uiText = {
     newVersionAvailable: 'Une nouvelle version est disponible.',
     attachButton: 'Joindre le fichier',
     openFileButton: 'Ouvrir le fichier',
+    signHereText: 'Signer ici',
+    clearText: 'Effacer',
+    confirmText: 'Appliquer la signature',
+    openSignatureButton: 'Ouvrir le pad de signature',
+    changeSignatureButton: 'Changer la signature',
   },
 };
 

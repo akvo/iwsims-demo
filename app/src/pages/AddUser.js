@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View } from 'react-native';
-import { ListItem, Button, Input, Text } from '@rneui/themed';
+import { View, StyleSheet } from 'react-native';
+import { Button, Input, Text } from '@rneui/themed';
 import { Formik, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -141,31 +141,29 @@ const AddUser = ({ navigation }) => {
       >
         {({ setFieldValue, values, handleSubmit, isSubmitting }) => (
           <BaseLayout.Content>
-            <ListItem>
-              <ListItem.Content>
-                <ListItem.Title>
-                  {`${trans.addUserPasscode} `}
-                  <Text color="#ff0000">*</Text>
-                </ListItem.Title>
-                <Input
-                  placeholder={trans.addUserPasscode}
-                  onChangeText={(value) => setFieldValue('name', value)}
-                  errorMessage={<ErrorMessage name="name" />}
-                  value={values.name}
-                  name="name"
-                  testID="input-name"
-                />
-              </ListItem.Content>
-            </ListItem>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>
+                {`${trans.addUserPasscode} `}
+                <Text style={styles.asterisk}>*</Text>
+              </Text>
+              <Input
+                placeholder={trans.addUserPasscode}
+                onChangeText={(value) => setFieldValue('name', value)}
+                errorMessage={<ErrorMessage name="name" />}
+                value={values.name}
+                name="name"
+                testID="input-name"
+                containerStyle={styles.input}
+              />
+            </View>
 
-            <View
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingHorizontal: 16 }}
-            >
+            <View style={styles.buttonContainer}>
               <Button
                 onPress={handleSubmit}
                 loading={loading}
                 disabled={isSubmitting}
                 testID="button-save"
+                buttonStyle={styles.button}
               >
                 {loading ? trans.buttonSaving : trans.buttonSave}
               </Button>
@@ -176,5 +174,33 @@ const AddUser = ({ navigation }) => {
     </BaseLayout>
   );
 };
+
+const styles = StyleSheet.create({
+  inputContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  asterisk: {
+    color: '#ff0000',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 8,
+  },
+  buttonContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  button: {
+    backgroundColor: '#007bff',
+  },
+});
 
 export default AddUser;

@@ -744,6 +744,7 @@ const uiText = {
     ),
     updateDataButton: "Update data",
     updateDataError: "Unable to update data",
+    requiredError: "{{field}} is required",
   },
 
   de: {},

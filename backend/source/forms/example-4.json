@@ -93,6 +93,23 @@
           "required": true
         }
       ]
+    },
+    {
+      "id": 55,
+      "order": 2,
+      "name": "signature",
+      "label": "Signature",
+      "questions": [
+        {
+          "id": 551,
+          "name": "signature",
+          "label": "Please sign here to confirm that you have read and understood the terms and conditions",
+          "short_label": "Please sign here",
+          "meta": false,
+          "type": "signature",
+          "required": true
+        }
+      ]
     }
   ]
 }

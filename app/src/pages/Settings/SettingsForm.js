@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { View } from 'react-native';
-import { ListItem, Switch } from '@rneui/themed';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Switch } from '@rneui/themed';
 import * as Crypto from 'expo-crypto';
 import * as Sentry from '@sentry/react-native';
 import * as SQLite from 'expo-sqlite';
@@ -174,7 +174,7 @@ const SettingsForm = ({ route }) => {
           {list.map((l, i) => {
             const itemTitle = nonEnglish ? i18n.transform(lang, l)?.label : l.label;
             return (
-              <ListItem
+              <TouchableOpacity
                 key={l.id}
                 testID={`settings-form-item-${i}`}
                 onPress={() => {
@@ -182,12 +182,12 @@ const SettingsForm = ({ route }) => {
                     handleEditPress(l.id);
                   }
                 }}
-                bottomDivider
+                style={styles.listItem}
               >
-                <ListItem.Content>
-                  <ListItem.Title>{itemTitle}</ListItem.Title>
-                  <ListItem.Subtitle>{renderSubtitle(l)}</ListItem.Subtitle>
-                </ListItem.Content>
+                <View style={styles.itemContent}>
+                  <Text style={styles.itemTitle}>{itemTitle}</Text>
+                  <Text style={styles.itemSubtitle}>{renderSubtitle(l)}</Text>
+                </View>
                 {l.type === 'switch' && (
                   <Switch
                     onValueChange={(value) => handleOnSwitch(value, l.key)}
@@ -195,7 +195,7 @@ const SettingsForm = ({ route }) => {
                     testID={`settings-form-switch-${i}`}
                   />
                 )}
-              </ListItem>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -210,5 +210,28 @@ const SettingsForm = ({ route }) => {
     </BaseLayout>
   );
 };
+
+const styles = StyleSheet.create({
+  listItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  itemSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+});
 
 export default SettingsForm;

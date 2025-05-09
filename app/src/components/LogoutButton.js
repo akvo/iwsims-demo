@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
-import { ListItem, Dialog, Text, Icon } from '@rneui/themed';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Dialog, Text, Icon } from '@rneui/themed';
 import { useNavigation } from '@react-navigation/native';
 import * as SQLite from 'expo-sqlite';
 import { AuthState, UserState, FormState, UIState } from '../store';
@@ -62,12 +62,16 @@ const LogoutButton = () => {
 
   return (
     <View>
-      <ListItem onPress={() => setVisible(true)} testID="list-item-logout">
-        <ListItem.Content>
-          <ListItem.Title>{trans.buttonReset}</ListItem.Title>
-        </ListItem.Content>
-        <Icon name="refresh" type="ionicon" />
-      </ListItem>
+      <TouchableOpacity
+        onPress={() => setVisible(true)}
+        testID="list-item-logout"
+        style={styles.listItem}
+      >
+        <View style={styles.contentContainer}>
+          <Text style={styles.buttonText}>{trans.buttonReset}</Text>
+        </View>
+        <Icon name="refresh" type="ionicon" color="grey" size={24} />
+      </TouchableOpacity>
       <Dialog testID="dialog-confirm-logout" isVisible={visible}>
         {loading ? <Dialog.Loading /> : <Text>{trans.confirmReset}</Text>}
         <Dialog.Actions>
@@ -84,3 +88,24 @@ const LogoutButton = () => {
 };
 
 export default LogoutButton;
+
+const styles = StyleSheet.create({
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#212121',
+  },
+});

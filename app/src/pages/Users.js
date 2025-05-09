@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollView, BackHandler, Platform, ToastAndroid } from 'react-native';
-import { Button, ListItem, Skeleton } from '@rneui/themed';
+import {
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  ToastAndroid,
+  BackHandler,
+} from 'react-native';
+import { Button, Skeleton } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { BaseLayout } from '../components';
@@ -76,26 +84,38 @@ const Users = ({ navigation, route }) => {
       }
       rightComponent={false}
     >
-      <ScrollView>
-        {loading && <Skeleton animation="wave" testID="loading-users" />}
-        {users.map((user) => (
-          <ListItem.Swipeable
-            key={user.id}
-            onPress={() => handleSelectUser(user)}
-            testID={`list-item-user-${user.id}`}
-            bottomDivider
-          >
-            <ListItem.Content>
-              <ListItem.Title testID={`title-username-${user.id}`}>{user.name}</ListItem.Title>
-            </ListItem.Content>
-            {user.active === 1 && (
-              <Icon name="checkmark" size={18} testID={`icon-checkmark-${user.id}`} />
-            )}
-          </ListItem.Swipeable>
-        ))}
-      </ScrollView>
+      {loading ? (
+        <Skeleton animation="wave" testID="loading-users" />
+      ) : (
+        <FlatList
+          data={users}
+          keyExtractor={(user) => user.id.toString()}
+          renderItem={({ item: user }) => (
+            <TouchableOpacity
+              onPress={() => handleSelectUser(user)}
+              testID={`list-item-user-${user.id}`}
+              style={styles.userItem}
+            >
+              <Text testID={`title-username-${user.id}`}>{user.name}</Text>
+              {user.active === 1 && (
+                <Icon name="checkmark" size={18} testID={`icon-checkmark-${user.id}`} />
+              )}
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </BaseLayout>
   );
 };
+
+const styles = StyleSheet.create({
+  userItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+});
 
 export default Users;

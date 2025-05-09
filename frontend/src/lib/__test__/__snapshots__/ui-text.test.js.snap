@@ -215,6 +215,7 @@ Object {
     "errorEntityData": [Function],
     "errorEntityNotExists": [Function],
     "errorFileList": "Could not fetch File list",
+    "errorFileUpload": "Could not upload file",
     "errorMandatoryFields": "Please answer all the mandatory questions",
     "errorPageNA": "Oops, this page is not available",
     "errorSomething": "Something went wrong",
@@ -573,6 +574,7 @@ Object {
     "realTime": "Real-Time Monitoring and Information System (IWSIMS)",
     "reportText": "Report generation and visualizations.",
     "reports": "Reports",
+    "requiredError": "{{field}} is required",
     "resetHint": <React.Fragment>
       Please set your password for the platform.
       <br />

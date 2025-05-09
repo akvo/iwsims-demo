@@ -14,22 +14,13 @@ const Question = memo(({ group, activeQuestions = [], index, dependantQuestions 
   const [preload, setPreload] = useState(true);
   const values = FormState.useState((s) => s.currentValues);
   const prevAdmAnswer = FormState.useState((s) => s.prevAdmAnswer);
-  const entityOptions = FormState.useState((s) => s.entityOptions);
   const flatListRef = useRef(null);
 
   const questions = useMemo(() => {
     if (group?.question?.length) {
-      const questionList = group.question
-        .filter((q) => (q?.extra?.type === 'entity' && prevAdmAnswer) || !q?.extra?.type)
-        .filter((q) => {
-          if (q?.extra?.type === 'entity' && entityOptions?.[q?.id]?.length) {
-            /**
-             * Make sure the entity cascade has administration answer and options
-             */
-            return entityOptions[q.id].filter((opt) => prevAdmAnswer.includes(opt?.parent)).length;
-          }
-          return q;
-        });
+      const questionList = group.question.filter(
+        (q) => (q?.extra?.type === 'entity' && prevAdmAnswer) || !q?.extra?.type,
+      );
       const questionWithNumber = questionList.reduce((curr, q, i) => {
         if (q?.default_value && i === 0) {
           return [{ ...q, keyform: 0 }];
@@ -45,7 +36,7 @@ const Question = memo(({ group, activeQuestions = [], index, dependantQuestions 
       return questionWithNumber;
     }
     return [];
-  }, [group, prevAdmAnswer, entityOptions]);
+  }, [group, prevAdmAnswer]);
 
   const handleOnGenerateUUID = useCallback(() => {
     if (preload) {

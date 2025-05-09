@@ -210,6 +210,8 @@ def collect_answers(user: SystemUser, dp: dict, qs: dict, data_id):
             answer.name = aw
         if q.type == QuestionTypes.attachment and aw:
             answer.name = aw
+        if q.type == QuestionTypes.signature and aw:
+            answer.name = aw
         if valid:
             if data_id and submission_type != SubmissionTypes.monitoring:
                 try:

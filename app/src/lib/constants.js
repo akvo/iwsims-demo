@@ -31,4 +31,5 @@ export const QUESTION_TYPES = {
   cascade: 'cascade',
   autofield: 'autofield',
   attachment: 'attachment',
+  signature: 'signature',
 };

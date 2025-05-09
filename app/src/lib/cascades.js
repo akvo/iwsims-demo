@@ -34,11 +34,11 @@ const download = async (downloadUrl, fileUrl, update = false) => {
 const loadDataSource = async (source, id = null) => {
   try {
     const { file: cascadeName } = source;
-    const db = SQLite.openDatabaseSync(cascadeName);
+    const db = SQLite.openDatabaseSync(cascadeName, { useNewConnection: true });
     const result = id
       ? await sql.getFirstRow(db, 'nodes', { id })
       : await sql.getEachRow(db, 'nodes');
-    return result;
+    return [result, db];
   } catch (error) {
     Sentry.captureMessage('[cascades] Unable to load cascade sqlite');
     Sentry.captureException(error);

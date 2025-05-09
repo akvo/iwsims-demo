@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Linking, Alert } from 'react-native';
-import { ListItem, Icon, Dialog, Text } from '@rneui/themed';
+import { View, Linking, Alert, StyleSheet, Text } from 'react-native';
+import { Icon, Dialog, Button } from '@rneui/themed';
 import * as Sentry from '@sentry/react-native';
 import { BaseLayout } from '../../components';
 import { config } from './config';
@@ -67,21 +67,23 @@ const AboutHome = () => {
               : l?.description;
             const subtitle = l.type === 'text' ? itemDesc : appVersion || itemDesc;
             return (
-              <ListItem key={l.id} bottomDivider>
-                <ListItem.Content>
-                  <ListItem.Title>{itemTitle}</ListItem.Title>
-                  <ListItem.Subtitle>{subtitle}</ListItem.Subtitle>
-                </ListItem.Content>
-              </ListItem>
+              <View key={l.id} style={styles.listItem}>
+                <View style={styles.listItemContent}>
+                  <Text style={styles.listItemTitle}>{itemTitle}</Text>
+                  <Text style={styles.listItemSubtitle}>{subtitle}</Text>
+                </View>
+              </View>
             );
           })}
           {/* Update button */}
-          <ListItem onPress={handleCheckAppVersion}>
-            <ListItem.Content>
-              <ListItem.Title>{trans.updateApp}</ListItem.Title>
-            </ListItem.Content>
-            <Icon name="system-update" type="materialicon" />
-          </ListItem>
+          <Button
+            title={trans.updateApp}
+            onPress={handleCheckAppVersion}
+            icon={<Icon name="system-update" type="materialicon" color="#fff" />}
+            buttonStyle={styles.updateButton}
+            titleStyle={styles.updateButtonText}
+            testID="update-button"
+          />
           {/* EOL Update button */}
 
           <Dialog isVisible={visible}>
@@ -111,5 +113,36 @@ const AboutHome = () => {
     </BaseLayout>
   );
 };
+
+const styles = StyleSheet.create({
+  listItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+  },
+  listItemContent: {
+    flexDirection: 'column',
+  },
+  listItemTitle: {
+    fontWeight: 'bold',
+  },
+  listItemSubtitle: {
+    color: '#666',
+  },
+  updateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007bff',
+    borderRadius: 5,
+    marginVertical: 16,
+    marginHorizontal: 10,
+  },
+  updateButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginRight: 10,
+  },
+});
 
 export default AboutHome;

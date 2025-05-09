@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./style.scss";
 import { Card, Select, Checkbox, Row, Col, Tag, Popover } from "antd";
-import { store } from "../../lib";
+import { QUESTION_TYPES, store } from "../../lib";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { first, flatten, intersection } from "lodash";
 
@@ -36,7 +36,9 @@ const AdvancedFilters = () => {
 
   const handleChange = (e) => {
     const questionRes = flatten(
-      questionGroups.map((qg) => qg.question.filter((q) => q.type === "option"))
+      questionGroups.map((qg) =>
+        qg.question.filter((q) => q.type === QUESTION_TYPES.option)
+      )
     ).find((q) => q.id === e);
     if (questionRes) {
       setSelectedQuestion(questionRes);

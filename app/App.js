@@ -29,7 +29,7 @@ import sql from './src/database/sql';
 export const setNotificationHandler = () =>
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     }),

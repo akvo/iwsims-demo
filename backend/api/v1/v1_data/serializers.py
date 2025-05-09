@@ -108,6 +108,7 @@ class SubmitFormDataAnswerSerializer(serializers.ModelSerializer):
             QuestionTypes.photo,
             QuestionTypes.date,
             QuestionTypes.attachment,
+            QuestionTypes.signature,
         ]:
             raise ValidationError(
                 "Valid string value is required for Question:{0}".format(
@@ -188,6 +189,7 @@ class SubmitFormSerializer(serializers.Serializer):
                 QuestionTypes.date,
                 QuestionTypes.autofield,
                 QuestionTypes.attachment,
+                QuestionTypes.signature,
             ]:
                 name = answer.get("value")
             elif answer.get("question").type == QuestionTypes.cascade:
@@ -1064,7 +1066,7 @@ class SubmitPendingFormDataAnswerSerializer(serializers.ModelSerializer):
         question = attrs.get("question")
         value = attrs.get("value")
 
-        if value == "":
+        if (value is None or value == "") and question.required:
             raise ValidationError(
                 f"Value is required for Question: {question.id}"
             )
@@ -1088,6 +1090,7 @@ class SubmitPendingFormDataAnswerSerializer(serializers.ModelSerializer):
             QuestionTypes.photo,
             QuestionTypes.date,
             QuestionTypes.attachment,
+            QuestionTypes.signature,
         ]:
             raise ValidationError(
                 f"Valid string value is required for Question: {question.id}"
@@ -1190,6 +1193,7 @@ class SubmitPendingFormSerializer(serializers.Serializer):
                 QuestionTypes.date,
                 QuestionTypes.autofield,
                 QuestionTypes.attachment,
+                QuestionTypes.signature,
             ]:
                 name = answer.get("value")
             elif question.type == QuestionTypes.cascade:

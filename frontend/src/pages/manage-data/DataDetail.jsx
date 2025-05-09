@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Table, Button, Space, Spin, Alert } from "antd";
 import { LoadingOutlined, HistoryOutlined } from "@ant-design/icons";
 import { EditableCell } from "../../components";
-import { api, config, store, uiText } from "../../lib";
+import { api, config, QUESTION_TYPES, store, uiText } from "../../lib";
 import { useNotification } from "../../util/hooks";
 import { flatten, isEqual } from "lodash";
 import { HistoryTable } from "../../components";
@@ -101,7 +101,7 @@ const DataDetail = ({
       rd.question.map((rq) => {
         if (rq.newValue || rq.newValue === 0) {
           let value = rq.newValue;
-          if (rq.type === "number") {
+          if (rq.type === QUESTION_TYPES.number) {
             value =
               parseFloat(value) % 1 !== 0 ? parseFloat(value) : parseInt(value);
           }

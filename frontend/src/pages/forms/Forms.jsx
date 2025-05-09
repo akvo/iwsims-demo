@@ -21,8 +21,15 @@ import {
   Modal,
 } from "antd";
 import axios from "axios";
-import { api, config, IS_ADMIN, store, uiText } from "../../lib";
-import { takeRight, pick, isEmpty } from "lodash";
+import {
+  api,
+  config,
+  IS_ADMIN,
+  QUESTION_TYPES,
+  store,
+  uiText,
+} from "../../lib";
+import { pick, isEmpty } from "lodash";
 import { PageLoader, Breadcrumbs, DescriptionPanel } from "../../components";
 import { useNotification } from "../../util/hooks";
 import moment from "moment";
@@ -75,37 +82,64 @@ const Forms = () => {
   };
 
   const onFinish = async ({ datapoint, ...values }, refreshForm) => {
+    const qs = forms.question_group.flatMap((group) => group.question);
+    // get all questions ids from values
+    const questionIds = Object.keys(values).map((id) => parseInt(id, 10));
+    const requiredQuestions = qs
+      .filter((q) => questionIds.includes(q?.id))
+      .filter((q) => q.required);
+    const hasEmptyRequired = requiredQuestions.some((q) => {
+      const questionId = q.id;
+      const questionValue = values[questionId];
+      const isEmptyValue =
+        questionValue === null ||
+        typeof questionValue === "undefined" ||
+        (typeof questionValue === "string" && questionValue.trim() === "");
+      if (isEmptyValue) {
+        webformRef.current.setFields([
+          {
+            name: questionId,
+            errors: [text.requiredError.replace("{{field}}", q.label)],
+          },
+        ]);
+        return true;
+      }
+      return false;
+    });
+
+    if (hasEmptyRequired) {
+      setSubmit(false);
+      return;
+    }
     // Get all Files objects to upload from values
-    const files = Object.keys(values)
-      .filter((v) => !isNaN(v))
-      .map((v) => {
-        const question = forms.question_group
-          .map((x) => x.question)
-          .flatMap((x) => x)
-          .find((q) => q.id === parseInt(v));
-        const val = values?.[v];
-        if (question?.type === "attachment" && val instanceof File) {
-          return {
-            question_id: question.id,
-            file: val,
-          };
+    const files = Object.entries(values)
+      .map(([key, val]) => {
+        const questionId = parseInt(key, 10);
+        if (isNaN(questionId)) {
+          return null;
         }
-        return false;
+        const question = forms.question_group
+          .flatMap((group) => group.question)
+          .find((q) => q.id === questionId);
+        return question?.type === QUESTION_TYPES.attachment &&
+          val instanceof File
+          ? { question_id: questionId, file: val }
+          : null;
       })
-      .filter((x) => x);
-    // Bulk upload files
+      .filter(Boolean);
+
     if (files.length) {
-      const promises = files.map((f) => {
+      const uploadPromises = files.map(({ question_id, file }) => {
         const formData = new FormData();
-        formData.append("file", f.file);
+        formData.append("file", file);
         return api.post(
-          `upload/attachments?question_id=${f.question_id}`,
+          `upload/attachments?question_id=${question_id}`,
           formData
         );
       });
-      const res = await Promise.allSettled(promises);
-      const failedFiles = res.filter(({ status }) => status === "rejected");
-      if (failedFiles.length) {
+
+      const results = await Promise.allSettled(uploadPromises);
+      if (results.some((result) => result.status === "rejected")) {
         notification.error({
           message: text.errorSomething,
           description: text.errorFileUpload,
@@ -113,103 +147,131 @@ const Forms = () => {
         setSubmit(false);
         return;
       }
-      const uploadedFiles = res
-        .filter(({ status }) => status === "fulfilled")
-        .map(({ value: v }) => v.data);
+
+      const uploadedFiles = results
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value.data);
+
       values = {
         ...values,
-        ...uploadedFiles.reduce((acc, f) => {
-          acc[f.question_id] = f.file;
+        ...uploadedFiles.reduce((acc, data) => {
+          acc[data.question_id] = data.file;
           return acc;
         }, {}),
       };
     }
-    // EOL Get all Files objects to upload from values
     setSubmit(true);
-    const questions = forms.question_group
-      .map((x) => x.question)
-      .flatMap((x) => x);
-    const entityNamesEndpoints = questions
-      ?.filter(
-        (q) =>
-          q?.type === "cascade" &&
-          q?.extra?.type === "entity" &&
-          typeof values?.[q?.id] === "string"
-      )
-      ?.map((q) => {
-        const pq = questions.find((subq) => subq?.id === q?.extra?.parentId);
-        const pv = values?.[pq?.id];
-        const pid = Array.isArray(pv) ? pv.slice(-1)?.[0] : pv;
-        return {
-          id: q?.id,
-          value: values?.[q?.id],
-          apiURL: `${q?.api?.endpoint}${pid}`,
-        };
-      });
-    const entityNames = entityNamesEndpoints?.map((e) => getEntityByName(e));
-    const resEntities = await Promise.allSettled(entityNames);
-    resEntities.forEach(({ value: entity }) => {
-      if (entity?.value && values?.[entity?.id]) {
-        values[entity.id] = entity.value;
-      }
-    });
 
-    const answers = Object.keys(values)
-      .filter((v) => !isNaN(v))
-      .map((v) => {
-        const qid = parseInt(v);
-        // remove hidden question from final payload
-        if (hiddenQIds.includes(qid)) {
+    const questions = forms.question_group.flatMap((group) => group.question);
+
+    // Process entity cascade questions
+    // Step 1: Filter out cascade questions of type entity where the value is a string
+    const entityQuestions = questions.filter(
+      (q) =>
+        q.type === QUESTION_TYPES.cascade &&
+        q.extra?.type === QUESTION_TYPES.entity &&
+        typeof values[q.id] === "string"
+    );
+
+    if (entityQuestions.length) {
+      // Step 2: Map each filtered question to a promise to retrieve the entity ID
+      const entityPromises = entityQuestions.map((q) => {
+        const parent = questions.find((subq) => subq.id === q.extra.parentId);
+        const parentVal = values[parent?.id];
+        const pid = Array.isArray(parentVal)
+          ? parentVal.slice(-1)[0]
+          : parentVal;
+        return getEntityByName({
+          id: q.id,
+          value: values[q.id],
+          apiURL: `${q.api.endpoint}${pid}`,
+        });
+      });
+      // Wait for all promises to settle and update the form values accordingly
+      const settledEntities = await Promise.allSettled(entityPromises);
+      // Step 3: Update the values object with the resolved entity IDs
+      settledEntities.forEach(({ value: entity }) => {
+        if (entity?.value && values[entity.id]) {
+          values[entity.id] = entity.value;
+        }
+      });
+    }
+    // EOL Process entity cascade questions
+
+    // Build answers array
+    const answers = Object.entries(values)
+      .filter(([key, val]) => {
+        const questionId = parseInt(key, 10);
+        const question = questions?.find((q) => q.id === questionId);
+        if (question?.type === QUESTION_TYPES.date) {
+          return typeof val !== "undefined" && moment(val).isValid();
+        }
+        // Check hidden questions
+        if (hiddenQIds.includes(questionId)) {
           return false;
         }
-        // EOL remove hidden question from final payload
-
-        const question = questions.find((q) => q.id === qid);
-        let val = values[v];
-        if (val || val === 0) {
-          val =
-            question.type === "option"
-              ? [val]
-              : question.type === "geo"
-              ? [val.lat, val.lng]
-              : val;
-
-          if (question.type === "cascade" && !question?.extra) {
-            val = takeRight(val)?.[0] || null;
-          }
-          return {
-            question: qid,
-            type:
-              question?.source?.file === "administrator.sqlite"
-                ? "administration"
-                : question.type,
-            value: val,
-            meta: question.meta,
-          };
+        // Check if the question is not required and the value is empty
+        if (
+          !question?.required &&
+          (val === null ||
+            typeof val === "undefined" ||
+            (typeof val === "string" && val.trim() === ""))
+        ) {
+          return false;
         }
-        return false;
+        return !isNaN(key);
       })
-      .filter((x) => x);
+      .map(([key, val]) => {
+        const qid = parseInt(key, 10);
+        const question = questions.find((q) => q.id === qid);
+        let answerValue = val;
+        if (question.type === QUESTION_TYPES.option) {
+          answerValue = [val];
+        } else if (question.type === QUESTION_TYPES.geo) {
+          answerValue = [val.lat, val.lng];
+        } else if (
+          question.type === QUESTION_TYPES.cascade &&
+          !question.extra
+        ) {
+          answerValue = Array.isArray(val) ? val.slice(-1)[0] : val;
+        }
+        return {
+          question: qid,
+          type:
+            question?.source?.file === "administrator.sqlite"
+              ? QUESTION_TYPES.administration
+              : question.type,
+          value: answerValue,
+          meta: question.meta,
+        };
+      });
+
     const names = answers
-      .filter((x) => !["geo", "cascade"].includes(x.type) && x.meta)
-      .map((x) => {
-        return x.value;
-      })
-      .flatMap((x) => x)
+      .filter(
+        (x) =>
+          x.meta &&
+          ![QUESTION_TYPES.geo, QUESTION_TYPES.cascade].includes(x.type)
+      )
+      .map((x) => x.value)
+      .flat()
       .join(" - ");
-    const geo = answers.find((x) => x.type === "geo" && x.meta)?.value;
-    const administration = answers.find(
-      (x) => (x.type === "cascade" && x.meta) || x.type === "administration"
+    const geo = answers.find(
+      (x) => x.type === QUESTION_TYPES.geo && x.meta
     )?.value;
-    const datapointName = datapoint?.name
-      ? datapoint.name
-      : names?.length
-      ? names
-      : `${authUser.administration.name} - ${moment().format("MMM YYYY")}`;
+    const administration = answers.find(
+      (x) => x.type === QUESTION_TYPES.administration
+    )?.value;
+
+    const datapointName =
+      datapoint?.name ||
+      (names.length
+        ? names
+        : `${authUser.administration.name} - ${moment().format("MMM YYYY")}`);
+
     const dataPayload = {
       administration: administration
         ? Array.isArray(administration)
-          ? takeRight(administration)[0]
+          ? administration[administration.length - 1]
           : administration
         : authUser.administration.id,
       name: datapointName,
@@ -217,49 +279,35 @@ const Forms = () => {
       submission_type: uuid
         ? config.submissionType.monitoring
         : config.submissionType.registration,
+      ...(uuid && { uuid }),
     };
-    if (uuid) {
-      dataPayload["uuid"] = uuid;
-    }
+
     const data = {
       data: dataPayload,
       answer: answers.map((x) => pick(x, ["question", "value"])),
     };
-    if (uuid && ["Super Admin", "Admin"].includes(authUser?.role?.value)) {
-      /**
-       * Save uuid to localStorage to prevent redirection to the same page after submitted data
-       */
+
+    if (uuid) {
       window?.localStorage?.setItem("submitted", uuid);
     }
-    api
-      .post(`form-pending-data/${formId}`, data)
-      .then(() => {
-        if (uuid) {
-          /**
-           * reset initial value
-           */
-          store.update((s) => {
-            s.initialValue = [];
-          });
-        }
-        if (refreshForm) {
-          refreshForm();
-        }
-        setHiddenQIds([]);
-        setTimeout(() => {
-          setShowSuccess(true);
-        }, 3000);
-      })
-      .catch(() => {
-        notification.error({
-          message: text.errorSomething,
+
+    try {
+      await api.post(`form-pending-data/${formId}`, data);
+      if (uuid) {
+        store.update((s) => {
+          s.initialValue = [];
         });
-      })
-      .finally(() => {
-        setTimeout(() => {
-          setSubmit(false);
-        }, 2000);
-      });
+      }
+      if (refreshForm) {
+        refreshForm();
+      }
+      setHiddenQIds([]);
+      setTimeout(() => setShowSuccess(true), 3000);
+    } catch (error) {
+      notification.error({ message: text.errorSomething });
+    } finally {
+      setTimeout(() => setSubmit(false), 2000);
+    }
   };
 
   const onFinishFailed = ({ errorFields }) => {
@@ -293,13 +341,17 @@ const Forms = () => {
         );
         const apiData = await res.json();
         if (endpoint.includes("administration")) {
-          const parents = apiData?.path?.split(".");
-          const startLevel = authUser?.administration?.level;
+          const parents = apiData?.path
+            ?.split(".")
+            ?.filter((a) => a !== "")
+            .slice(1);
+          const userLevel = authUser?.administration?.level;
+          const startLevel = userLevel ? userLevel - 1 : 0;
+          const admValues = [...parents, apiData?.id]
+            .map((a) => parseInt(a, 10))
+            .slice(startLevel);
           return {
-            [id]: [...parents, apiData?.id]
-              .filter((a) => a !== "" && a !== "1")
-              .map((a) => parseInt(a, 10))
-              .slice(startLevel),
+            [id]: admValues,
           };
         }
         return { [id]: [apiData?.id] };
@@ -315,7 +367,11 @@ const Forms = () => {
   );
 
   const transformValue = (type, value) => {
-    if (type === "option" && Array.isArray(value) && value.length) {
+    if (
+      type === QUESTION_TYPES.option &&
+      Array.isArray(value) &&
+      value.length
+    ) {
       return value[0];
     }
     if (type === "geo" && Array.isArray(value) && value.length === 2) {
@@ -339,15 +395,17 @@ const Forms = () => {
         /**
          * Transform cascade answers
          */
-        const cascadeAPIs = questions
-          ?.filter(
-            (q) =>
-              q?.type === "cascade" &&
-              q?.extra?.type !== "entity" &&
-              q?.api?.endpoint
-          )
-          ?.map((q) => getCascadeAnswerId(q.id, q.api, answers?.[q.id]));
-        const cascadeResponses = await Promise.allSettled(cascadeAPIs);
+        const cascadeQuestions = questions.filter(
+          (q) =>
+            q?.type === QUESTION_TYPES.cascade &&
+            q?.extra?.type !== QUESTION_TYPES.entity &&
+            q?.api?.endpoint
+        );
+
+        const cascadePromises = cascadeQuestions.map((q) =>
+          getCascadeAnswerId(q.id, q.api, answers?.[q.id])
+        );
+        const cascadeResponses = await Promise.allSettled(cascadePromises);
         const cascadeValues = cascadeResponses
           .filter(({ status }) => status === "fulfilled")
           .map(({ value }) => value)
@@ -365,6 +423,16 @@ const Forms = () => {
             let value = Object.keys(cascadeValues).includes(`${q?.id}`)
               ? cascadeValues[q.id]
               : transformValue(q?.type, answers?.[q.id]);
+            // if question required is false and value is empty then return false
+            if (
+              !q?.required &&
+              (value === null ||
+                typeof value === "undefined" ||
+                (typeof value === "string" && value.trim() === ""))
+            ) {
+              return false;
+            }
+
             // set default answer by default_value for new_or_monitoring question
             if (
               q?.default_value &&
@@ -498,7 +566,7 @@ const Forms = () => {
                 if (qVal?.type === "entity") {
                   qVal = {
                     ...qVal,
-                    type: "cascade",
+                    type: QUESTION_TYPES.cascade,
                     extra: q?.extra,
                   };
                 }
@@ -582,6 +650,18 @@ const Forms = () => {
   useEffect(() => {
     handleOnClearForm(preload, initialValue);
   }, [handleOnClearForm, preload, initialValue]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   return (
     <div id="form">

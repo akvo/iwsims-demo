@@ -14,6 +14,7 @@ import {
   TypeCascade,
   TypeAutofield,
   TypeAttachment,
+  TypeSignature,
 } from '../fields';
 import styles from '../styles';
 import { FormState } from '../../store';
@@ -121,6 +122,15 @@ const QuestionField = ({ keyform, field: questionField, onChange, value = null }
       case QUESTION_TYPES.attachment:
         return (
           <TypeAttachment
+            keyform={keyform}
+            onChange={handleOnChangeField}
+            value={value}
+            {...questionField}
+          />
+        );
+      case QUESTION_TYPES.signature:
+        return (
+          <TypeSignature
             keyform={keyform}
             onChange={handleOnChangeField}
             value={value}

@@ -334,6 +334,7 @@ class FormDataAddListView(APIView):
                 QuestionTypes.photo,
                 QuestionTypes.date,
                 QuestionTypes.attachment,
+                QuestionTypes.signature,
             ]:
                 name = answer.get("value")
             else:
@@ -883,6 +884,7 @@ class PendingFormDataView(APIView):
                 QuestionTypes.photo,
                 QuestionTypes.date,
                 QuestionTypes.attachment,
+                QuestionTypes.signature,
             ]:
                 name = answer.get("value")
             else:

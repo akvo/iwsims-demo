@@ -1145,6 +1145,18 @@
             ]
           },
           "required": true
+        },
+        {
+          "id": 17030862700084,
+          "name": "signature",
+          "label": "Please sign here to confirm your application",
+          "short_label": "Please sign here",
+          "tooltip": {
+            "text": "Please sign here to confirm your application"
+          },
+          "meta": false,
+          "type": "signature",
+          "required": true
         }
       ]
     }

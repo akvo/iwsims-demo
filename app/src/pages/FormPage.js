@@ -222,7 +222,7 @@ const FormPage = ({ navigation, route }) => {
         .forEach((q) => {
           const val = jsonData[q.id];
           if (q?.source?.file === 'administrator.sqlite' && val) {
-            prevAdmAnswer = [val];
+            prevAdmAnswer = Array.isArray(val) ? val : [val];
           }
           if (val && !Array.isArray(val)) {
             jsonData[q.id] = [val];

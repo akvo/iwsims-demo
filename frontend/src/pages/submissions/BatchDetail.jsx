@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import SubmissionEditing from "./SubmissionEditing";
-import { api, store, uiText } from "../../lib";
+import { api, QUESTION_TYPES, store, uiText } from "../../lib";
 import { isEqual, flatten } from "lodash";
 import { useNotification } from "../../util/hooks";
 
@@ -83,7 +83,7 @@ const BatchDetail = ({
           !isEqual(rq.value, rq.newValue)
         ) {
           let value = rq.newValue;
-          if (rq.type === "number") {
+          if (rq.type === QUESTION_TYPES.number) {
             value =
               parseFloat(value) % 1 !== 0 ? parseFloat(value) : parseInt(value);
           }

@@ -42,15 +42,8 @@ const AddAssignment = () => {
     .slice()
     .filter((l) => l?.id >= userAdmLevel)
     .sort((a, b) => a?.level - b?.level);
-  /**
-   * Administration is required when
-   * the level has been selected as valid `admLevels`
-   * AND
-   * the current selected administration have a children
-   */
-  const isAdmRequired =
-    admLevels.map((a) => a.id).includes(level) &&
-    selectedAdm?.[0]?.children?.length > 0;
+
+  const NATIONAL_LEVEL = levels?.find((l) => l.level === 0)?.id;
 
   const showLevel = userAdmLevel !== lowestLevel?.id;
 
@@ -139,13 +132,7 @@ const AddAssignment = () => {
     });
   };
 
-  const onSelectLevel = async (val, option) => {
-    store.update((s) => {
-      s.administration.length = val;
-      s.administration = selectedAdm.filter(
-        (item) => item.level < option.level
-      );
-    });
+  const onSelectLevel = async (val) => {
     setLevel(val);
   };
 
@@ -156,7 +143,7 @@ const AddAssignment = () => {
     try {
       const payload = {
         name: values.name,
-        administrations: isAdmRequired
+        administrations: selectedAdministrations?.length
           ? selectedAdministrations
           : [authUser.administration.id],
         forms: values.forms,
@@ -319,7 +306,7 @@ const AddAssignment = () => {
                 </Form.Item>
               </div>
             )}
-            {isAdmRequired && (
+            {level !== NATIONAL_LEVEL && selectedAdm?.[0]?.children?.length && (
               <div className="form-row">
                 <Form.Item
                   name="administrations"

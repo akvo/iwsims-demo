@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
-import { ListItem, Divider } from '@rneui/themed';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Divider } from '@rneui/themed';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { BaseLayout, LogoutButton } from '../components';
 import DialogForm from './Settings/DialogForm';
@@ -38,13 +39,6 @@ const Settings = ({ navigation }) => {
     <BaseLayout title={trans.settingsPageTitle} rightComponent={false}>
       <BaseLayout.Content>
         <View>
-          {/* <ListItem onPress={() => setShowLang(true)} testID="settings-lang" bottomDivider>
-            <ListItem.Content>
-              <ListItem.Title>{trans.langTitle}</ListItem.Title>
-              <ListItem.Subtitle>{activeLangText?.label}</ListItem.Subtitle>
-            </ListItem.Content>
-            <ListItem.Chevron />
-          </ListItem> */}
           <Divider width={8} color="#f9fafb" />
           {config.map((c, i) => {
             const itemTitle = nonEnglish ? i18n.transform(activeLang, c)?.name : c.name;
@@ -52,42 +46,46 @@ const Settings = ({ navigation }) => {
               ? i18n.transform(activeLang, c?.description)?.name
               : c?.description?.name;
             return (
-              <ListItem
+              <TouchableOpacity
                 key={c.id}
                 onPress={() => goToForm(c.id)}
                 testID={`goto-settings-form-${i}`}
-                bottomDivider
+                style={styles.listItem}
               >
-                <ListItem.Content>
-                  <ListItem.Title>{itemTitle}</ListItem.Title>
-                  <ListItem.Subtitle>{itemDesc}</ListItem.Subtitle>
-                </ListItem.Content>
-                <ListItem.Chevron />
-              </ListItem>
+                <View style={styles.listItemContent}>
+                  <Text style={styles.listItemTitle}>{itemTitle}</Text>
+                  <Text style={styles.listItemSubtitle}>{itemDesc}</Text>
+                </View>
+                <Icon name="chevron-right" size={24} color="#000" />
+              </TouchableOpacity>
             );
           })}
           {/* Show this only if no code_assignment in auth type */}
           {!authenticationType.includes('code_assignment') && (
             <>
               <Divider width={8} color="#f9fafb" />
-              <ListItem onPress={goToAddForm} testID="add-more-forms" bottomDivider>
-                <ListItem.Content>
-                  <ListItem.Title>{trans.settingAddFormTitle}</ListItem.Title>
-                  <ListItem.Subtitle>{trans.settingAddFormDesc}</ListItem.Subtitle>
-                </ListItem.Content>
-                <ListItem.Chevron />
-              </ListItem>
+              <TouchableOpacity
+                onPress={goToAddForm}
+                testID="add-more-forms"
+                style={styles.listItem}
+              >
+                <View style={styles.listItemContent}>
+                  <Text style={styles.listItemTitle}>{trans.settingAddFormTitle}</Text>
+                  <Text style={styles.listItemSubtitle}>{trans.settingAddFormDesc}</Text>
+                </View>
+                <Icon name="chevron-right" size={24} color="#000" />
+              </TouchableOpacity>
             </>
           )}
           <Divider width={8} color="#f9fafb" />
           <LogoutButton />
           <Divider width={8} color="#f9fafb" />
-          <ListItem onPress={() => navigation.navigate('About')}>
-            <ListItem.Content>
-              <ListItem.Title>{trans.about}</ListItem.Title>
-            </ListItem.Content>
-            <ListItem.Chevron />
-          </ListItem>
+          <TouchableOpacity onPress={() => navigation.navigate('About')} style={styles.listItem}>
+            <View style={styles.listItemContent}>
+              <Text style={styles.listItemTitle}>{trans.about}</Text>
+            </View>
+            <Icon name="chevron-right" size={24} color="#000" />
+          </TouchableOpacity>
           <DialogForm
             onOk={handleSaveLang}
             onCancel={() => setShowLang(false)}
@@ -100,5 +98,23 @@ const Settings = ({ navigation }) => {
     </BaseLayout>
   );
 };
+
+const styles = StyleSheet.create({
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+  },
+  listItemContent: {
+    flex: 1,
+  },
+  listItemTitle: {
+    fontWeight: 'bold',
+  },
+  listItemSubtitle: {
+    color: '#666',
+  },
+});
 
 export default Settings;

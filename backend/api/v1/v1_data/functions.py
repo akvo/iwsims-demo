@@ -1,4 +1,5 @@
 import re
+import base64
 from django.core.cache import cache
 from datetime import datetime
 from uuid import uuid4
@@ -68,6 +69,14 @@ def set_answer_data(data, question):
         name = fake.image_url()
     elif question.type == QuestionTypes.attachment:
         name = fake.file_name()
+    elif question.type == QuestionTypes.signature:
+        """Loads an image from the source/images directory and returns it as a
+        base64 encoded string."""
+        image_path = "./source/images/fake_signature.png"
+        with open(image_path, 'rb') as image_file:
+            image_bytes = image_file.read()
+            base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
+            name = base64_encoded
     elif question.type == QuestionTypes.date:
         name = fake.date_between_dates(
             date_start=timezone.datetime.now().date() - timedelta(days=90),
