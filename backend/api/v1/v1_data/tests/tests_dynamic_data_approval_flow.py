@@ -171,7 +171,7 @@ class DynamicDataApprovalFlowTestCase(
             content_type="application/json",
             **header
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         approvers = PendingDataApproval.objects.filter(
             batch__user=user,
             batch__name="Complete Batch",
@@ -253,7 +253,7 @@ class DynamicDataApprovalFlowTestCase(
             content_type="application/json",
             **header
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         approvers = PendingDataApproval.objects.filter(
             batch__user=user,
@@ -353,7 +353,7 @@ class DynamicDataApprovalFlowTestCase(
             content_type="application/json",
             **header
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         batch = PendingDataBatch.objects.filter(
             user=user,
             name="Bypass 2nd batch",
@@ -466,7 +466,7 @@ class DynamicDataApprovalFlowTestCase(
             content_type="application/json",
             **header
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Check if the batch is created
         batch = PendingDataBatch.objects.filter(

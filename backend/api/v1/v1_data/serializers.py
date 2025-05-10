@@ -1,6 +1,8 @@
 import requests
+from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
+from django.core.files.storage import FileSystemStorage
 from django_q.tasks import async_task
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field, inline_serializer
@@ -18,6 +20,7 @@ from api.v1.v1_data.models import (
     PendingDataBatchComments,
     AnswerHistory,
     PendingAnswerHistory,
+    PendingDataBatchFiles,
 )
 from api.v1.v1_forms.constants import QuestionTypes, SubmissionTypes
 from api.v1.v1_forms.models import (
@@ -28,6 +31,7 @@ from api.v1.v1_forms.models import (
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_profile.models import Administration, EntityData, Levels
 from api.v1.v1_users.models import SystemUser, Organisation
+from api.v1.v1_data.constants import FileActionTypes
 from utils.custom_serializer_fields import (
     CustomPrimaryKeyRelatedField,
     UnvalidatedField,
@@ -36,11 +40,13 @@ from utils.custom_serializer_fields import (
     CustomChoiceField,
     CustomBooleanField,
     CustomIntegerField,
+    CustomFileField,
 )
 from utils.default_serializers import CommonDataSerializer
 from utils.email_helper import send_email, EmailTypes
 from utils.functions import update_date_time_format, get_answer_value
 from utils.functions import get_answer_history
+from utils import storage
 
 
 class SubmitFormDataSerializer(serializers.ModelSerializer):
@@ -719,6 +725,13 @@ class ApprovePendingDataRequestSerializer(serializers.Serializer):
         pass
 
 
+class PendingDataBatchFileSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = PendingDataBatchFiles
+        fields = ["file_path", "created_at", "updated_at"]
+
+
 class ListBatchSerializer(serializers.ModelSerializer):
     form = serializers.SerializerMethodField()
     administration = serializers.SerializerMethodField()
@@ -728,6 +741,7 @@ class ListBatchSerializer(serializers.ModelSerializer):
     approvers = serializers.SerializerMethodField()
     created = serializers.SerializerMethodField()
     updated = serializers.SerializerMethodField()
+    files = PendingDataBatchFileSerializer(many=True, read_only=True)
 
     @extend_schema_field(CommonDataSerializer)
     def get_form(self, instance: PendingDataBatch):
@@ -820,6 +834,7 @@ class ListBatchSerializer(serializers.ModelSerializer):
             "updated",
             "status",
             "approvers",
+            "files",
         ]
 
 
@@ -913,6 +928,10 @@ class CreateBatchSerializer(serializers.Serializer):
         ),
         required=False,
     )
+    files = CustomListField(
+        child=CustomFileField(),
+        required=False,
+    )
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -927,6 +946,17 @@ class CreateBatchSerializer(serializers.Serializer):
         if len(data) == 0:
             raise ValidationError("No data found for this batch")
         return data
+
+    def validate_files(self, files):
+        allowed_formats = ["csv", "xls", "xlsx", "docx", "doc", "pdf"]
+        for file in files:
+            file_extension = file.name.split(".")[-1].lower()
+            if file_extension not in allowed_formats:
+                raise ValidationError(
+                    f"Invalid file format for {file.name}."
+                    f"Allowed formats are: {', '.join(allowed_formats)}"
+                )
+        return files
 
     def validate(self, attrs):
         if len(attrs.get("data")) == 0:
@@ -967,54 +997,88 @@ class CreateBatchSerializer(serializers.Serializer):
             user.user_access.administration.path,
             user.user_access.administration_id,
         )
-        obj = PendingDataBatch.objects.create(
-            form_id=form_id,
-            administration_id=user.user_access.administration_id,
-            user=user,
-            name=validated_data.get("name"),
-        )
-        for data in validated_data.get("data"):
-            data.batch = obj
-            data.save()
-        for administration in Administration.objects.filter(
-            id__in=path.split(".")
-        ):
-            assignment = FormApprovalAssignment.objects.filter(
-                form_id=form_id, administration=administration
-            ).first()
-            if assignment:
-                level = assignment.user.user_access.administration.level_id
-                PendingDataApproval.objects.create(
-                    batch=obj, user=assignment.user, level_id=level
-                )
-                number_of_records = PendingFormData.objects.filter(
-                    batch=obj
-                ).count()
-                data = {
-                    "send_to": [assignment.user.email],
-                    "listing": [
-                        {"name": "Batch Name", "value": obj.name},
-                        {"name": "Questionnaire", "value": obj.form.name},
-                        {
-                            "name": "Number of Records",
-                            "value": number_of_records,
-                        },
-                        {
-                            "name": "Submitter",
-                            "value": f"""{obj.user.name},
-                        {obj.user.designation_name}""",
-                        },
-                    ],
-                }
-                send_email(context=data, type=EmailTypes.pending_approval)
-        if validated_data.get("comment"):
-            PendingDataBatchComments.objects.create(
-                user=user, batch=obj, comment=validated_data.get("comment")
+        with transaction.atomic():
+            batch = PendingDataBatch.objects.create(
+                form_id=form_id,
+                administration_id=user.user_access.administration_id,
+                user=user,
+                name=validated_data.get("name"),
             )
-        return obj
+            for data in validated_data.get("data"):
+                data.batch = batch
+                data.save()
+            for administration in Administration.objects.filter(
+                id__in=path.split(".")
+            ):
+                assignment = FormApprovalAssignment.objects.filter(
+                    form_id=form_id, administration=administration
+                ).first()
+                if assignment:
+                    level = assignment.user.user_access.administration.level_id
+                    PendingDataApproval.objects.create(
+                        batch=batch, user=assignment.user, level_id=level
+                    )
+                    number_of_records = PendingFormData.objects.filter(
+                        batch=batch
+                    ).count()
+                    data = {
+                        "send_to": [assignment.user.email],
+                        "listing": [
+                            {"name": "Batch Name", "value": batch.name},
+                            {
+                                "name": "Questionnaire",
+                                "value": batch.form.name
+                            },
+                            {
+                                "name": "Number of Records",
+                                "value": number_of_records,
+                            },
+                            {
+                                "name": "Submitter",
+                                "value": f"""{batch.user.name},
+                            {batch.user.designation_name}""",
+                            },
+                        ],
+                    }
+                    send_email(context=data, type=EmailTypes.pending_approval)
+            if validated_data.get("comment"):
+                PendingDataBatchComments.objects.create(
+                    user=user,
+                    batch=batch, comment=validated_data.get("comment")
+                )
 
-    def update(self, instance, validated_data):
-        pass
+            # Handle file uploads
+            if validated_data.get("files"):
+                try:
+                    fs = FileSystemStorage()
+                    for f in validated_data.get("files"):
+                        file = fs.save(
+                            f"./tmp/{f.name}",
+                            f,
+                        )
+                        file_path = fs.path(file)
+                        # Save the file to storage
+                        file_path = storage.upload(
+                            file=file_path,
+                            filename=f.name,
+                            folder="batch_files"
+                        )
+                        batch.batch_files.create(
+                            file_path=file_path
+                        )
+                        PendingDataBatchComments.objects.create(
+                            batch=batch,
+                            user=self.context['user'],
+                            comment=FileActionTypes.FieldStr[
+                                FileActionTypes.added
+                            ],
+                            file_path=file_path,
+                            file_action=FileActionTypes.added
+                        )
+                except Exception as e:
+                    raise ValidationError(f"File upload failed: {str(e)}")
+
+        return batch
 
 
 class SubmitPendingFormDataSerializer(serializers.ModelSerializer):
@@ -1258,3 +1322,20 @@ class SubmitPendingFormSerializer(serializers.Serializer):
             obj_data.save_to_file
 
         return obj_data
+
+
+class BatchFileUploadSerializer(serializers.Serializer):
+    file = CustomFileField()
+
+    def validate_files(self, file):
+        allowed_formats = ["csv", "xls", "xlsx", "docx", "doc", "pdf"]
+        file_extension = file.name.split(".")[-1].lower()
+        if file_extension not in allowed_formats:
+            raise ValidationError(
+                f"Invalid file format for {file.name}."
+                f" Allowed formats are: {', '.join(allowed_formats)}."
+            )
+        return file
+
+    class Meta:
+        fields = ['file']

@@ -1,7 +1,7 @@
 from django.db import models
 
 # Create your models here.
-from api.v1.v1_data.constants import DataApprovalStatus
+from api.v1.v1_data.constants import DataApprovalStatus, FileActionTypes
 from api.v1.v1_forms.constants import (
     QuestionTypes,
     SubmissionTypes,
@@ -144,7 +144,6 @@ class PendingDataBatch(models.Model):
     )
     name = models.TextField()
     uuid = models.UUIDField(default=None, null=True)
-    file = models.URLField(default=None, null=True)
     approved = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(default=None, null=True)
@@ -168,6 +167,16 @@ class PendingDataBatchComments(models.Model):
         related_name="user_batch_comment",
     )
     comment = models.TextField()
+    file_path = models.CharField(
+        max_length=255,
+        null=True,
+        default=None,
+    )
+    file_action = models.IntegerField(
+        choices=FileActionTypes.FieldStr.items(),
+        null=True,
+        default=None,
+    )
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -446,3 +455,22 @@ class ViewPendingDataApproval(models.Model):
     class Meta:
         managed = False
         db_table = "view_pending_approval"
+
+
+class PendingDataBatchFiles(models.Model):
+    batch = models.ForeignKey(
+        to=PendingDataBatch,
+        on_delete=models.CASCADE,
+        related_name="batch_files",
+    )
+    file_path = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.file_path
+
+    class Meta:
+        db_table = "batch_files"
+        verbose_name = "Batch File"
+        verbose_name_plural = "Batch Files"
