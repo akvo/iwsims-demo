@@ -110,6 +110,36 @@
           "required": true
         }
       ]
+    },
+    {
+      "id": 66,
+      "name": "testimonials",
+      "label": "Testimonials",
+      "description": "Grab all the testimonials you can get from your clients and add them here.",
+      "order": 9,
+      "repeatable": true,
+      "repeatText": "Add more",
+      "questions": [
+        {
+          "id": 661,
+          "name": "testimonial",
+          "label": "Please write your testimonial here",
+          "short_label": "Your testimonial",
+          "tooltip": {
+            "text": "Please write your testimonial here"
+          },
+          "meta": false,
+          "order": 1,
+          "type": "text",
+          "required": false,
+          "extra": [
+            {
+              "placement": "after",
+              "content": "Please write at least 10 words"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

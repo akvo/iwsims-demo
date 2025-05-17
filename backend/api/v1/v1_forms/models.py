@@ -62,6 +62,8 @@ class QuestionGroup(models.Model):
     name = models.CharField(max_length=255)
     label = models.TextField(null=True, default=None)
     order = models.BigIntegerField(null=True, default=None)
+    repeatable = models.BooleanField(default=False)
+    repeat_text = models.CharField(max_length=255, default=None, null=True)
 
     def __str__(self):
         return self.name

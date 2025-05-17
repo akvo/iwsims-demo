@@ -23,9 +23,9 @@ const TypeAttachment = ({
   const [selectedFile, setSelectedFile] = useState({ name: value });
   const activeLang = FormState.useState((s) => s.lang);
   const trans = i18n.text(activeLang);
-  const { allowedFileRules } = rule || {};
-  const allowedFileTypes = allowedFileRules?.length
-    ? allowedFileRules.map((type) => MIME_TYPES?.[type] || 'application/octet-stream')
+  const { allowedFileTypes } = rule || {};
+  const fileTypes = allowedFileTypes?.length
+    ? allowedFileTypes.map((type) => MIME_TYPES?.[type] || 'application/octet-stream')
     : '*/*';
 
   const [fileName, fileType] = useMemo(() => {
@@ -40,7 +40,7 @@ const TypeAttachment = ({
     try {
       const { assets, canceled } = await DocumentPicker.getDocumentAsync({
         multiple: false,
-        type: allowedFileTypes,
+        type: fileTypes,
         copyToCacheDirectory: true,
       });
       if (!canceled && assets && assets.length > 0) {

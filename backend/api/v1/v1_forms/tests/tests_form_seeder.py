@@ -199,3 +199,29 @@ class FormSeederTestCase(TestCase):
         self.assertEqual(
             phone["disabled"], {"submission_type": ["monitoring"]}
         )
+
+    def test_repeatable_question_group(self):
+        seed_administration_test()
+        self.call_command("--test")
+        token = self.get_user_token()
+        form_id = 4
+
+        response = self.client.get(
+            f"/api/v1/form/web/{form_id}",
+            follow=True,
+            content_type="application/json",
+            **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+        )
+
+        data = response.json()
+        question_group = [
+            qg
+            for qg in data["question_group"]
+            if qg["name"] == "testimonials"
+        ][0]
+        self.assertIn("repeatable", question_group)
+        self.assertTrue(question_group["repeatable"])
+        self.assertIn("repeat_text", question_group)
+        self.assertEqual(
+            question_group["repeat_text"], "Add more"
+        )

@@ -12,6 +12,7 @@ from api.v1.v1_profile.constants import DEFAULT_ADMINISTRATION_LEVELS
 from api.v1.v1_users.models import Organisation
 from django.core.management import call_command
 from utils.custom_generator import generate_sqlite, update_sqlite
+from unittest.mock import patch
 
 
 class SQLiteGenerationTest(TestCase):
@@ -159,6 +160,76 @@ class SQLiteGenerationTest(TestCase):
                 )
             ),
         )
+        conn.close()
+        os.remove(file_name)
+
+    def test_error_update_sqlite(self):
+        # Test for adding new org
+        file_name = generate_sqlite(Organisation, test=True)
+        self.assertTrue(os.path.exists(file_name))
+
+        org = Organisation.objects.create(name="SQLite Company")
+        # Add a new org
+        update_sqlite(
+            model=Organisation,
+            data={"id": org.id, "name": org.name},
+            id=None,
+            test=True,
+        )
+        conn = sqlite3.connect(file_name)
+        self.assertEqual(
+            1,
+            len(
+                pd.read_sql_query(
+                    "SELECT * FROM nodes where id = ?", conn, params=[org.id]
+                )
+            ),
+        )
+        conn.close()
+        # Test update with SQLite connection error
+        new_org_name = "Edited Company"
+        org = Organisation.objects.last()
+        org.name = new_org_name
+        org.save()
+        # Mock sqlite3.connect to raise an OperationalError
+        with patch(
+            "sqlite3.connect",
+            side_effect=sqlite3.OperationalError("Mocked SQLite error"),
+        ):
+            # We expect the update_sqlite function to catch the exception
+            # So we're testing that it doesn't crash
+            with self.assertRaises(sqlite3.OperationalError) as context:
+                update_sqlite(
+                    model=Organisation,
+                    data={"name": new_org_name},
+                    id=org.id,
+                    test=True,
+                )
+            # Verify the error message
+            self.assertIn("Mocked SQLite error", str(context.exception))
+        # Now test with an undefined field (without mocking)
+        # This should handle the error gracefully without updating the DB
+        try:
+            update_sqlite(
+                model=Organisation,
+                data={"undefined_field": new_org_name},
+                id=org.id,
+                test=True,
+            )
+        except Exception as e:
+            self.fail(f"update_sqlite raised unexpected exception: {e}")
+        # Verify the database was not updated with the undefined field
+        conn = sqlite3.connect(file_name)
+        cursor = conn.cursor()
+        # Check if there's a column called 'undefined_field'
+        cursor.execute("PRAGMA table_info(nodes)")
+        columns = [info[1] for info in cursor.fetchall()]
+        self.assertNotIn(
+            "undefined_field",
+            columns,
+            "Undefined field should not be added to the database"
+        )
+        cursor.close()
         conn.close()
         os.remove(file_name)
 

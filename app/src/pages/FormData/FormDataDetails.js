@@ -18,7 +18,7 @@ const ImageView = ({ label, uri, textTestID, imageTestID }) => (
   </View>
 );
 
-const SubtitleContent = ({ index, answers, type, id, source = null, option = [] }) => {
+const SubtitleContent = ({ index, answer, type, source = null, option = [] }) => {
   const activeLang = UIState.useState((s) => s.lang);
   const trans = i18n.text(activeLang);
   const [cascadeValue, setCascadeValue] = useState(null);
@@ -34,12 +34,12 @@ const SubtitleContent = ({ index, answers, type, id, source = null, option = [] 
 
   const fetchCascade = useCallback(async () => {
     if (source) {
-      const cascadeID = parseInt(answers?.[id], 10);
+      const cascadeID = parseInt(answer, 10);
       const [csValue, db] = await cascades.loadDataSource(source, cascadeID);
       setCascadeValue(csValue);
       await db.closeAsync();
     }
-  }, [answers, id, source]);
+  }, [answer, source]);
 
   useEffect(() => {
     fetchCascade();
@@ -50,10 +50,10 @@ const SubtitleContent = ({ index, answers, type, id, source = null, option = [] 
       return (
         <View testID={`text-type-geo-${index}`}>
           <Text>
-            {trans.latitude}: {answers?.[id]?.[0]}
+            {trans.latitude}: {answer?.[0]}
           </Text>
           <Text>
-            {trans.longitude}: {answers?.[id]?.[1]}
+            {trans.longitude}: {answer?.[1]}
           </Text>
         </View>
       );
@@ -62,19 +62,23 @@ const SubtitleContent = ({ index, answers, type, id, source = null, option = [] 
     case QUESTION_TYPES.date:
       return (
         <Text testID={`text-answer-${index}`}>
-          {answers?.[id] ? moment(answers[id]).format('YYYY-MM-DD') : '-'}
+          {answer ? moment(answer).format('YYYY-MM-DD') : '-'}
         </Text>
       );
     case QUESTION_TYPES.option:
     case QUESTION_TYPES.multiple_option:
-      return answers?.[id]
-        ?.map((a) => {
-          const findOption = option?.find((o) => o?.value === a);
-          return findOption?.label;
-        })
-        ?.join(', ');
+      return (
+        <Text testID={`text-answer-${index}`}>
+          {answer
+            ?.map((a) => {
+              const findOption = option?.find((o) => o?.value === a);
+              return findOption?.label;
+            })
+            ?.join(', ')}
+        </Text>
+      );
     case QUESTION_TYPES.attachment:
-      if (!answers?.[id]) {
+      if (!answer) {
         return <Text testID={`text-type-attachment-${index}`}>-</Text>;
       }
       return (
@@ -83,22 +87,18 @@ const SubtitleContent = ({ index, answers, type, id, source = null, option = [] 
             testID={`text-answer-${index}`}
             style={{ color: 'blue', textDecorationLine: 'underline' }}
           >
-            {answers[id].split('/').pop()}
+            {answer.split('/').pop()}
           </Text>
           <Button
             title={trans.openFileButton}
-            onPress={() => openFileManager(answers?.[id])}
+            onPress={() => openFileManager(answer)}
             testID={`open-file-button-${index}`}
             buttonStyle={{ width: '100%', backgroundColor: '#1E90FF', marginTop: 8 }}
           />
         </View>
       );
     default:
-      return (
-        <Text testID={`text-answer-${index}`}>
-          {answers?.[id] || answers?.[id] === 0 ? answers[id] : '-'}
-        </Text>
-      );
+      return <Text testID={`text-answer-${index}`}>{answer || answer === 0 ? answer : '-'}</Text>;
   }
 };
 
@@ -113,6 +113,23 @@ const FormDataDetails = ({ navigation, route }) => {
   const currentGroup = form?.question_group?.[currentPage] || [];
   const totalPage = form?.question_group?.length || 0;
   const questions = currentGroup?.question || [];
+  const numberOfRepeat =
+    Object.entries(currentValues).filter(([key]) => {
+      const [questionID] = key.split('-');
+      return questionID === `${questions?.[0]?.id}`;
+    }).length || 1;
+  // Create a sections array for the repeatable questions
+  const sections = Array.from({ length: numberOfRepeat }, (_, i) => ({
+    repeatIndex: i,
+    title: currentGroup?.repeatable
+      ? `${currentGroup?.label || currentGroup?.name} #${i + 1}`
+      : currentGroup?.label || currentGroup?.name,
+    data: questions.map((q, qx) => ({
+      ...q,
+      id: i === 0 ? q.id : `${q.id}-${i}`,
+      keyform: `${i + 1}.${qx + 1}`,
+    })),
+  }));
 
   useEffect(
     () =>
@@ -133,60 +150,59 @@ const FormDataDetails = ({ navigation, route }) => {
   return (
     <BaseLayout title={route?.params?.name} rightComponent={false}>
       <ScrollView>
-        {questions?.map((q, i) => {
-          if (q.type === QUESTION_TYPES.attachment && currentValues?.[q.id]) {
-            const fileName = currentValues[q.id].split('/').pop();
-            const fileExtension = fileName.split('.').pop();
-            if (helpers.isImageFile(fileExtension)) {
-              return (
-                <ImageView
-                  key={q.id}
-                  label={q.label}
-                  uri={currentValues[q.id]}
-                  textTestID={`text-question-${i}`}
-                  imageTestID={`image-question-${i}`}
-                />
-              );
-            }
-          }
-          if (
-            [QUESTION_TYPES.photo, QUESTION_TYPES.signature].includes(q.type) &&
-            currentValues?.[q.id]
-          ) {
-            return (
-              <ImageView
-                key={q.id}
-                label={q.label}
-                uri={currentValues[q.id]}
-                textTestID={`text-question-${i}`}
-                imageTestID={`image-question-${i}`}
-              />
-            );
-          }
-          return (
-            <ListItem key={q.id} bottomDivider>
-              <ListItem.Content>
-                <ListItem.Title style={styles.title} testID={`text-question-${i}`}>
-                  {q.label}
-                </ListItem.Title>
-                <ListItem.Subtitle
-                  style={{
-                    width: '100%',
-                  }}
-                >
-                  <SubtitleContent
-                    index={i}
-                    answers={currentValues}
-                    type={q.type}
-                    id={q.id}
-                    source={q?.source}
-                    option={q?.option}
+        {sections.map((section) => (
+          <View key={section.repeatIndex}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.data.map((q, qIndex) => {
+              const { id, label, type, source, option } = q;
+              const answer = currentValues[id] || currentValues[`${id}-${section.repeatIndex}`];
+
+              if (q.type === QUESTION_TYPES.attachment && currentValues?.[q.id]) {
+                const fileName = answer.split('/').pop();
+                const fileExtension = fileName.split('.').pop();
+                if (helpers.isImageFile(fileExtension)) {
+                  return (
+                    <ImageView
+                      key={q.id}
+                      label={q.label}
+                      uri={answer}
+                      textTestID={`text-question-${qIndex}`}
+                      imageTestID={`image-question-${qIndex}`}
+                    />
+                  );
+                }
+              }
+              if (
+                [QUESTION_TYPES.photo, QUESTION_TYPES.signature].includes(q.type) &&
+                currentValues?.[q.id]
+              ) {
+                return (
+                  <ImageView
+                    key={q.id}
+                    label={q.label}
+                    uri={answer}
+                    textTestID={`text-question-${qIndex}`}
+                    imageTestID={`image-question-${qIndex}`}
                   />
-                </ListItem.Subtitle>
-              </ListItem.Content>
-            </ListItem>
-          );
-        })}
+                );
+              }
+              return (
+                <ListItem key={q.keyform} bottomDivider>
+                  <ListItem.Content>
+                    <ListItem.Title testID={`text-question-${qIndex}`}>{label}</ListItem.Title>
+                    <SubtitleContent
+                      index={qIndex}
+                      answer={answer}
+                      type={type}
+                      source={source}
+                      option={option}
+                    />
+                  </ListItem.Content>
+                </ListItem>
+              );
+            })}
+          </View>
+        ))}
       </ScrollView>
       <FormDataNavigation
         totalPage={totalPage}
@@ -202,6 +218,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     marginBottom: 4,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   containerImage: {
     display: 'flex',

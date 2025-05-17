@@ -120,7 +120,12 @@ export const transformForm = (
           ?.sort((a, b) => a.order - b.order)
           ?.map((q) => transformed.find((t) => t.id === q.id))
           ?.filter((q) => q)
-          ?.filter((q) => onFilterDependency(qg, currentValues, q));
+          ?.filter((q) => onFilterDependency(qg, currentValues, q))
+          ?.map((q) => ({
+            ...q,
+            group_id: qg?.id,
+            group_name: qg?.name,
+          }));
 
         if (transformedQuestions.length > 0) {
           return {
@@ -304,16 +309,247 @@ export const transformMonitoringData = (formDataJson, lastValues) => {
     ?.filter((q) => lastValues?.[q?.id] && q?.pre)
     ?.filter((q) => lastValues[q.id] === q.pre.answer || lastValues[q.id].includes(q.pre.answer))
     ?.flatMap((q) => q?.pre?.fill || []);
-  const currentValues = allQuestions?.reduce(
-    (prev, current) => ({
-      [current.id]: transformValue(current, lastValues?.[current.id], prefilled),
-      ...prev,
-    }),
-    {},
-  );
+
+  // Initialize with an empty object
+  const currentValues = {};
+
+  // Loop through the lastValues object keys
+  if (lastValues && Object.keys(lastValues).length) {
+    Object.keys(lastValues).forEach((key) => {
+      const [questionId] = key.split('-');
+      const question = allQuestions?.find((q) => `${q?.id}` === questionId);
+      if (question) {
+        currentValues[key] = transformValue(question, lastValues[key], prefilled);
+      }
+    });
+  }
+
   const admQuestion = allQuestions.find(
     (q) => q?.type === 'cascade' && q?.source?.file === 'administrator.sqlite',
   );
   const prevAdmAnswer = lastValues?.[admQuestion?.id] ? [lastValues?.[admQuestion?.id]] : [];
   return { currentValues, prevAdmAnswer };
+};
+
+/**
+ * Sanitizes the function string by removing any occurrences of "fetch" or "return fetch"
+ * and replacing them with a console.error statement.
+ */
+const sanitize = [
+  {
+    prefix: /return fetch|fetch/g,
+    re: /return fetch(\(.+)\} +|fetch(\(.+)\} +/,
+    log: 'Fetch is not allowed.',
+  },
+];
+/**
+ * Checks if the function string contains any occurrences of "fetch" or "return fetch"
+ * and replaces them with a console.error statement.
+ * @param {string} fnString - The function string to check.
+ * @returns
+ */
+const checkDirty = (fnString) =>
+  sanitize.reduce((prev, sn) => {
+    const dirty = prev.match(sn.re);
+    if (dirty) {
+      return prev.replace(sn.prefix, '').replace(dirty[1], `console.error("${sn.log}");`);
+    }
+    return prev;
+  }, fnString);
+
+/**
+ * Fucntion to convert a function string into an array of tokens.
+ * It handles hex color codes by temporarily replacing them with placeholders.
+ * The function uses a regular expression to match various tokens, including
+ * operators, numbers, and identifiers.
+ * @param {string} fnString - The function string to be tokenized.
+ * @returns
+ */
+const fnToArray = (fnString) => {
+  // First handle hex color codes by temporarily replacing them
+  const hexColorPattern = /"#[0-9A-Fa-f]{6}"/g;
+  const hexColors = [];
+  let modifiedString = fnString;
+
+  // Extract and replace hex colors with placeholders
+  let index = 0;
+  let match = hexColorPattern.exec(fnString);
+  while (match !== null) {
+    const placeholder = `__HEX_COLOR_${index}__`;
+    hexColors.push({ placeholder, value: match[0] });
+    modifiedString = modifiedString.replace(match[0], placeholder);
+    index += 1;
+    match = hexColorPattern.exec(fnString);
+  }
+
+  // Normal tokenization
+  const regex =
+    // eslint-disable-next-line no-useless-escape
+    /\#\d+|[(),?;&.'":()+\-*/.!]|<=|<|>|>=|!=|==|[||]{2}|=>|__HEX_COLOR_[0-9]+__|\w+| /g;
+  const tokens = modifiedString.match(regex) || [];
+
+  // Restore hex colors
+  return tokens.map((token) => {
+    const hexColor = hexColors.find((hc) => hc.placeholder === token);
+    return hexColor ? hexColor.value : token;
+  });
+};
+
+/**
+ * Handles numeric values by removing quotes and trimming whitespace.
+ * It uses a regular expression to check if the value is numeric.
+ * If the value is numeric, it returns the trimmed value without quotes.
+ * Otherwise, it returns the original value.
+ * @param {*} val
+ * @returns
+ */
+const handeNumericValue = (val) => {
+  const regex = /^"\d+"$|^\d+$/;
+  const isNumeric = regex.test(val);
+  if (isNumeric) {
+    return String(val).trim().replace(/['"]/g, '');
+  }
+  return val;
+};
+
+/**
+ * Generates the function body by replacing placeholders with actual values.
+ * It handles hex color codes, numeric values, and string values.
+ * The function uses a regular expression to check if the processed string
+ * matches a valid numeric format. If it does, it returns the generated function body.
+ * If not, it returns a default value based on the original function string.
+ * @param {*} fnMetadata
+ * @param {*} values
+ * @param {*} questions
+ * @returns
+ */
+const generateFnBody = (fnMetadata, values, questions = []) => {
+  if (!fnMetadata) {
+    return false;
+  }
+
+  // Create a map of question names to IDs for faster lookup
+  const questionMap = {};
+  if (questions && questions.length) {
+    questions.forEach((q) => {
+      if (q.name && q.id) {
+        questionMap[q.name] = q.id;
+      }
+    });
+  }
+
+  let defaultVal = null;
+  // Replace variables with numeric placeholders
+  let processedString = fnMetadata;
+  // Iterate over keys of the values object and replace placeholders with '0'
+  Object.keys(values).forEach((key) => {
+    processedString = processedString.replace(new RegExp(`#${key}#`, 'g'), '0');
+  });
+
+  // Check if the processed string matches the regular expression
+  const validNumericRegex = /^[\d\s+\-*/().]*$/;
+  if (!validNumericRegex.test(processedString)) {
+    // update defaultVal into empty string for non numeric equation
+    defaultVal = fnMetadata.includes('!') ? String(null) : '';
+  }
+
+  const fnMetadataTemp = fnToArray(fnMetadata);
+
+  // generate the fnBody
+  const fnBody = fnMetadataTemp.map((f) => {
+    // First check for literal hex color codes in quotes - don't process them
+    if (f.startsWith('"#') && f.endsWith('"') && /^"#[0-9A-Fa-f]{6}"$/.test(f)) {
+      return f; // Return hex color as-is
+    }
+    // Check if the token is a number or a string
+    if (questionMap?.[f]) {
+      let val = values?.[questionMap[f]];
+
+      if (!val && val !== 0) {
+        return defaultVal;
+      }
+      if (typeof val === 'object') {
+        if (Array.isArray(val)) {
+          val = val.join(',');
+        } else if (val?.lat) {
+          val = `${val.lat},${val.lng}`;
+        } else {
+          val = defaultVal;
+        }
+      }
+      if (typeof val === 'number') {
+        val = Number(val);
+      }
+      if (typeof val === 'string') {
+        val = `"${val}"`;
+      }
+
+      return val;
+    }
+    return f;
+  });
+
+  // all fn conditions meet, return generated fnBody
+  if (!fnBody.filter((x) => !x).length) {
+    return fnBody
+      .map(handeNumericValue)
+      .join('')
+      .replace(/(?:^|\s)\.includes\(['"][^'"]+['"]\)/g, "''$1")
+      .replace(/''\s*\./g, "''.");
+  }
+
+  // remap fnBody if only one fnBody meet the requirements
+  return fnBody
+    .filter((x) => x)
+    .map(handeNumericValue)
+    .join('')
+    .replace(/(?:^|\s)\.includes\(['"][^'"]+['"]\)/g, " ''$&")
+    .replace(/''\s*\./g, "''.");
+};
+
+/**
+ * Function to fix incomplete math operations in a string expression.
+ * It checks if the expression ends with an incomplete math operation
+ * (e.g., '+', '-', '*', '/') and appends '0' to complete the operation.
+ * If the expression ends with '*' or '/', it removes the operator.
+ * @param {string} expression - The string expression to be fixed.
+ * @returns
+ */
+const fixIncompleteMathOperation = (expression) => {
+  // Regular expression to match incomplete math operations
+  const incompleteMathRegex = /[+\-*/]\s*$/;
+
+  // Check if the input ends with an incomplete math operation
+  if (incompleteMathRegex.test(expression)) {
+    // If the expression ends with '+' or '-', append '0' to complete the operation
+    if (expression.trim().endsWith('+') || expression.trim().endsWith('-')) {
+      return `${expression.trim()}0`;
+    }
+    // If the expression ends with '*' or '/', it's safer to remove the operator
+    if (expression.trim().endsWith('*') || expression.trim().endsWith('/')) {
+      return expression.trim().slice(0, -1);
+    }
+  }
+  return expression;
+};
+/**
+ * Function to convert a function string into an actual function.
+ * It sanitizes the function string, generates the function body,
+ * and creates a new function using the Function constructor.
+ * If an error occurs during the process, it returns null.
+ * @param {string} fnString - The function string to be converted.
+ * @param {object} values - An object containing values to be used in the function.
+ * @param {array} questions - An array of question objects to be used in the function.
+ * @returns {function|null} - The generated function or null if an error occurs.
+ * @throws {Error} - Throws an error if the function string is invalid or if the function cannot be created.
+ */
+export const strToFunction = (fnString, values, questions = []) => {
+  try {
+    const fnStr = checkDirty(fnString);
+    const fnBody = fixIncompleteMathOperation(generateFnBody(fnStr, values, questions));
+    // eslint-disable-next-line no-new-func
+    return new Function(`return ${fnBody}`);
+  } catch {
+    return null;
+  }
 };

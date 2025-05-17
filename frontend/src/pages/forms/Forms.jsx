@@ -81,24 +81,204 @@ const Forms = () => {
     }
   };
 
-  const onFinish = async ({ datapoint, ...values }, refreshForm) => {
-    const qs = forms.question_group.flatMap((group) => group.question);
-    // get all questions ids from values
+  const processFileUploads = async (questions = [], values) => {
+    const files = Object.entries(values)
+      .filter(([key, val]) => {
+        // Parse the key to handle both standard and repeatable question formats
+        // For repeatable questions, key format is "questionID-repeatIndex"
+        const [baseKey] = key.split("-");
+        const questionId = parseInt(baseKey, 10);
+
+        if (isNaN(questionId)) {
+          return false;
+        }
+        const question = questions.find((q) => q.id === questionId);
+        return (
+          question?.type === QUESTION_TYPES.attachment && val instanceof File
+        );
+      })
+      .map(([key, val]) => {
+        // Keep the original key format to maintain the repeatable structure
+        const [baseKey] = key.split("-");
+        const questionId = parseInt(baseKey, 10);
+        return {
+          question_id: questionId,
+          file: val,
+          original_key: key, // Preserve the original key for mapping back
+        };
+      });
+
+    if (!files.length) {
+      return values;
+    }
+
+    const uploadPromises = files.map(({ question_id, file }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return api.post(
+        `upload/attachments?question_id=${question_id}`,
+        formData
+      );
+    });
+
+    const results = await Promise.allSettled(uploadPromises);
+
+    if (results.some((result) => result.status === "rejected")) {
+      notification.error({
+        message: text.errorSomething,
+        description: text.errorFileUpload,
+      });
+      setSubmit(false);
+      return;
+    }
+
+    // Create a new values object with the uploaded files
+    const updatedValues = { ...values };
+
+    // Process each successfully uploaded file
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        const data = result.value.data;
+        const originalKey = files[index].original_key;
+        updatedValues[originalKey] = data.file;
+      }
+    });
+
+    return updatedValues;
+  };
+
+  const processEntityCascades = async (questions, values) => {
+    // Find entity cascade questions
+    const entityQuestions = questions.filter(
+      (q) =>
+        q.type === QUESTION_TYPES.cascade &&
+        q.extra?.type === QUESTION_TYPES.entity &&
+        typeof values[q.id] === "string"
+    );
+
+    if (!entityQuestions.length) {
+      return values;
+    }
+
+    const entityPromises = entityQuestions.map((q) => {
+      const parent = questions.find((subq) => subq.id === q.extra.parentId);
+      const parentVal = values[parent?.id];
+      const pid = Array.isArray(parentVal) ? parentVal.slice(-1)[0] : parentVal;
+      return getEntityByName({
+        id: q.id,
+        value: values[q.id],
+        apiURL: `${q.api.endpoint}${pid}`,
+      });
+    });
+
+    const settledEntities = await Promise.allSettled(entityPromises);
+
+    // Process successfully resolved entities
+    const updatedValues = { ...values };
+    settledEntities.forEach(({ status, value: entity }) => {
+      if (status === "fulfilled" && entity?.value && values[entity.id]) {
+        updatedValues[entity.id] = entity.value;
+      }
+    });
+
+    return updatedValues;
+  };
+
+  const processRepeatableQuestions = (values, repeatableQuestions) => {
+    // Group repeatable question values (e.g., "12345", "12345-1", "12345-2")
+    const repeatableAnswers = [];
+    const processedQuestionIds = new Set();
+
+    // Extract base IDs and their variants
+    const repeatableMap = {};
+
+    // Get all valid repeatable question IDs for validation
+    const validQuestionIds = new Set(repeatableQuestions.map((q) => q.id));
+
+    // Extract and group repeatable questions by base ID
+    Object.entries(values).forEach(([key, value]) => {
+      // Skip non-numeric keys that don't match our pattern
+      if (!/^\d+(-\d+)?$/.test(key)) {
+        return;
+      }
+
+      // Parse the key to get question ID and repetition index
+      const [baseId, repetitionIndex] = key.includes("-")
+        ? key.split("-")
+        : [key, "0"];
+
+      const baseIdNum = parseInt(baseId, 10);
+
+      // Skip if this is not a valid repeatable question ID
+      if (!validQuestionIds.has(baseIdNum)) {
+        return;
+      }
+
+      // Initialize array for this question if it doesn't exist
+      if (!repeatableMap[baseId]) {
+        repeatableMap[baseId] = [];
+      }
+
+      // Store the value with its repetition index for sorting later
+      repeatableMap[baseId].push({
+        index: parseInt(repetitionIndex || "0", 10),
+        value,
+      });
+
+      // Mark this question ID as processed
+      processedQuestionIds.add(baseId);
+    });
+
+    // Process each question ID and format its answers
+    processedQuestionIds.forEach((baseId) => {
+      const questionId = parseInt(baseId, 10);
+      const question = repeatableQuestions.find((q) => q.id === questionId);
+
+      // Skip if question not found in repeatable questions
+      if (!question) {
+        return;
+      }
+
+      // Sort by repetition index to maintain order
+      repeatableMap[baseId]
+        .sort((a, b) => a.index - b.index)
+        .forEach((item) => {
+          // Use our enhanced transformValue function with forApi=true
+          repeatableAnswers.push(transformValue(question, item.value, true));
+        });
+    });
+
+    return repeatableAnswers;
+  };
+
+  const submitFormData = async ({ datapoint, ...values }, refreshForm) => {
+    // Get non-repeatable questions
+    const nonRepeatableQuestions = forms.question_group
+      .filter((group) => !group?.repeatable)
+      .flatMap((group) => group.question);
+
+    // Get repeatable questions
+    const repeatableQuestions = forms.question_group
+      .filter((group) => group?.repeatable)
+      .flatMap((group) => group.question);
+
+    // Validate required fields
     const questionIds = Object.keys(values).map((id) => parseInt(id, 10));
-    const requiredQuestions = qs
-      .filter((q) => questionIds.includes(q?.id))
-      .filter((q) => q.required);
+    const requiredQuestions = nonRepeatableQuestions.filter(
+      (q) => questionIds.includes(q?.id) && q.required
+    );
+
     const hasEmptyRequired = requiredQuestions.some((q) => {
-      const questionId = q.id;
-      const questionValue = values[questionId];
+      const questionValue = values[q.id];
       const isEmptyValue =
         questionValue === null ||
         typeof questionValue === "undefined" ||
         (typeof questionValue === "string" && questionValue.trim() === "");
+
       if (isEmptyValue) {
         webformRef.current.setFields([
           {
-            name: questionId,
+            name: q.id,
             errors: [text.requiredError.replace("{{field}}", q.label)],
           },
         ]);
@@ -111,106 +291,49 @@ const Forms = () => {
       setSubmit(false);
       return;
     }
-    // Get all Files objects to upload from values
-    const files = Object.entries(values)
-      .map(([key, val]) => {
-        const questionId = parseInt(key, 10);
-        if (isNaN(questionId)) {
-          return null;
-        }
-        const question = forms.question_group
-          .flatMap((group) => group.question)
-          .find((q) => q.id === questionId);
-        return question?.type === QUESTION_TYPES.attachment &&
-          val instanceof File
-          ? { question_id: questionId, file: val }
-          : null;
-      })
-      .filter(Boolean);
 
-    if (files.length) {
-      const uploadPromises = files.map(({ question_id, file }) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        return api.post(
-          `upload/attachments?question_id=${question_id}`,
-          formData
-        );
-      });
-
-      const results = await Promise.allSettled(uploadPromises);
-      if (results.some((result) => result.status === "rejected")) {
-        notification.error({
-          message: text.errorSomething,
-          description: text.errorFileUpload,
-        });
-        setSubmit(false);
-        return;
-      }
-
-      const uploadedFiles = results
-        .filter((result) => result.status === "fulfilled")
-        .map((result) => result.value.data);
-
-      values = {
-        ...values,
-        ...uploadedFiles.reduce((acc, data) => {
-          acc[data.question_id] = data.file;
-          return acc;
-        }, {}),
-      };
-    }
     setSubmit(true);
 
-    const questions = forms.question_group.flatMap((group) => group.question);
+    // Process non-repeatable File Uploads
+    values = await processFileUploads(nonRepeatableQuestions, values);
+    if (!values) {
+      return; // Upload failed, function already showed error
+    }
+    // Process repeatable File Uploads
+    values = await processFileUploads(repeatableQuestions, values);
+    if (!values) {
+      return; // Upload failed, function already showed error
+    }
 
     // Process entity cascade questions
-    // Step 1: Filter out cascade questions of type entity where the value is a string
-    const entityQuestions = questions.filter(
-      (q) =>
-        q.type === QUESTION_TYPES.cascade &&
-        q.extra?.type === QUESTION_TYPES.entity &&
-        typeof values[q.id] === "string"
-    );
+    values = await processEntityCascades(nonRepeatableQuestions, values);
 
-    if (entityQuestions.length) {
-      // Step 2: Map each filtered question to a promise to retrieve the entity ID
-      const entityPromises = entityQuestions.map((q) => {
-        const parent = questions.find((subq) => subq.id === q.extra.parentId);
-        const parentVal = values[parent?.id];
-        const pid = Array.isArray(parentVal)
-          ? parentVal.slice(-1)[0]
-          : parentVal;
-        return getEntityByName({
-          id: q.id,
-          value: values[q.id],
-          apiURL: `${q.api.endpoint}${pid}`,
-        });
-      });
-      // Wait for all promises to settle and update the form values accordingly
-      const settledEntities = await Promise.allSettled(entityPromises);
-      // Step 3: Update the values object with the resolved entity IDs
-      settledEntities.forEach(({ value: entity }) => {
-        if (entity?.value && values[entity.id]) {
-          values[entity.id] = entity.value;
-        }
-      });
-    }
-    // EOL Process entity cascade questions
-
-    // Build answers array
+    // Build answers array for non-repeatable questions
     const answers = Object.entries(values)
       .filter(([key, val]) => {
+        // Skip keys that look like repeatable questions (contain a hyphen)
+        if (key.includes("-")) {
+          return false;
+        }
+
         const questionId = parseInt(key, 10);
-        const question = questions?.find((q) => q.id === questionId);
+        const question = nonRepeatableQuestions?.find(
+          (q) => q.id === questionId
+        );
+        if (!question) {
+          return false;
+        }
+
         if (question?.type === QUESTION_TYPES.date) {
           return typeof val !== "undefined" && moment(val).isValid();
         }
-        // Check hidden questions
+
+        // Skip hidden questions
         if (hiddenQIds.includes(questionId)) {
           return false;
         }
-        // Check if the question is not required and the value is empty
+
+        // Skip empty non-required fields
         if (
           !question?.required &&
           (val === null ||
@@ -219,34 +342,28 @@ const Forms = () => {
         ) {
           return false;
         }
+
         return !isNaN(key);
       })
       .map(([key, val]) => {
-        const qid = parseInt(key, 10);
-        const question = questions.find((q) => q.id === qid);
-        let answerValue = val;
-        if (question.type === QUESTION_TYPES.option) {
-          answerValue = [val];
-        } else if (question.type === QUESTION_TYPES.geo) {
-          answerValue = [val.lat, val.lng];
-        } else if (
-          question.type === QUESTION_TYPES.cascade &&
-          !question.extra
-        ) {
-          answerValue = Array.isArray(val) ? val.slice(-1)[0] : val;
-        }
-        return {
-          question: qid,
-          type:
-            question?.source?.file === "administrator.sqlite"
-              ? QUESTION_TYPES.administration
-              : question.type,
-          value: answerValue,
-          meta: question.meta,
-        };
+        const questionId = parseInt(key, 10);
+        const question = nonRepeatableQuestions.find(
+          (q) => q.id === questionId
+        );
+        return transformValue(question, val, true);
       });
 
-    const names = answers
+    // Process repeatable questions and add them to answers
+    const repeatableAnswers = processRepeatableQuestions(
+      values,
+      repeatableQuestions
+    );
+
+    // Combine both answer sets
+    const allAnswers = [...answers, ...repeatableAnswers];
+
+    // Create datapoint name from meta fields or use default
+    const names = allAnswers
       .filter(
         (x) =>
           x.meta &&
@@ -255,10 +372,12 @@ const Forms = () => {
       .map((x) => x.value)
       .flat()
       .join(" - ");
-    const geo = answers.find(
+
+    const geo = allAnswers.find(
       (x) => x.type === QUESTION_TYPES.geo && x.meta
     )?.value;
-    const administration = answers.find(
+
+    const administration = allAnswers.find(
       (x) => x.type === QUESTION_TYPES.administration
     )?.value;
 
@@ -282,9 +401,9 @@ const Forms = () => {
       ...(uuid && { uuid }),
     };
 
-    const data = {
+    const payload = {
       data: dataPayload,
-      answer: answers.map((x) => pick(x, ["question", "value"])),
+      answer: allAnswers.map((x) => pick(x, ["question", "value"])),
     };
 
     if (uuid) {
@@ -292,7 +411,7 @@ const Forms = () => {
     }
 
     try {
-      await api.post(`form-pending-data/${formId}`, data);
+      await api.post(`form-pending-data/${formId}`, payload);
       if (uuid) {
         store.update((s) => {
           s.initialValue = [];
@@ -366,19 +485,79 @@ const Forms = () => {
     [authUser?.administration?.level]
   );
 
-  const transformValue = (type, value) => {
+  const transformValue = (question, value, forApi = false) => {
+    // Type can be either a string or an object with type property
+    const type = typeof question === "string" ? question : question?.type;
+    let transformedValue = value;
+
+    // Handle option type values
+    if (type === QUESTION_TYPES.option) {
+      if (forApi) {
+        // For API submission - always return as array
+        transformedValue = Array.isArray(value) ? value : [value];
+      } else {
+        // For UI display - extract first value from array if it exists
+        transformedValue =
+          Array.isArray(value) && value.length ? value[0] : value;
+      }
+    }
+
+    // Handle geo type values
+    if (type === QUESTION_TYPES.geo) {
+      if (forApi && typeof value === "object") {
+        // For API submission - convert {lat, lng} to array
+        transformedValue = [value.lat, value.lng];
+      }
+      if (!forApi && Array.isArray(value) && value.length === 2) {
+        // For UI display - convert array to {lat, lng} object
+        const [lat, lng] = value;
+        transformedValue = { lat, lng };
+      }
+    }
+
+    // Handle cascade type values
     if (
-      type === QUESTION_TYPES.option &&
-      Array.isArray(value) &&
-      value.length
+      type === QUESTION_TYPES.cascade &&
+      !forApi &&
+      typeof question === "object" &&
+      !question.extra &&
+      Array.isArray(value)
     ) {
-      return value[0];
+      // For UI display - take last cascaded value
+      transformedValue = value.slice(-1)[0];
     }
-    if (type === "geo" && Array.isArray(value) && value.length === 2) {
-      const [lat, lng] = value;
-      return { lat, lng };
+
+    if (type === QUESTION_TYPES.cascade && forApi && Array.isArray(value)) {
+      // For API submission - take last value from array
+      transformedValue = value.slice(-1)[0];
     }
-    return typeof value === "undefined" ? "" : value;
+
+    // Handle date type values
+    if (type === QUESTION_TYPES.date && typeof value === "string" && !forApi) {
+      // For UI display - convert string to moment object
+      transformedValue = moment(value);
+    }
+
+    // Default case - handle undefined values
+    if (typeof transformedValue === "undefined" && !forApi) {
+      transformedValue = "";
+    }
+
+    // For API submission, return an object with metadata
+    if (forApi && typeof question === "object") {
+      return {
+        question: question.id,
+        type:
+          question?.source?.file === "administrator.sqlite"
+            ? QUESTION_TYPES.administration
+            : question.type,
+        value: transformedValue,
+        meta: question.meta,
+      };
+    }
+
+    // For UI display or when question is just a type string, return only the transformed value
+    return transformedValue;
   };
 
   const fetchInitialMonitoringData = useCallback(
@@ -418,30 +597,19 @@ const Forms = () => {
          * Transform answers to Webform format
          */
         const submissionType = uuid ? "monitoring" : "registration";
-        const initialValue = questions
-          .map((q) => {
-            let value = Object.keys(cascadeValues).includes(`${q?.id}`)
-              ? cascadeValues[q.id]
-              : transformValue(q?.type, answers?.[q.id]);
+        const initialValue = Object.entries(answers)
+          .filter(([key, val]) => {
+            const questionId = parseInt(key, 10);
+            const q = questions?.find((q) => q?.id === questionId);
             // if question required is false and value is empty then return false
             if (
               !q?.required &&
-              (value === null ||
-                typeof value === "undefined" ||
-                (typeof value === "string" && value.trim() === ""))
+              (val === null ||
+                typeof val === "undefined" ||
+                (typeof val === "string" && val.trim() === ""))
             ) {
               return false;
             }
-
-            // set default answer by default_value for new_or_monitoring question
-            if (
-              q?.default_value &&
-              q?.default_value?.submission_type?.monitoring
-            ) {
-              value = q.default_value.submission_type.monitoring;
-            }
-            // EOL set default answer by default_value for new_or_monitoring question
-
             // remove hidden question init value
             if (
               q?.hidden?.submission_type &&
@@ -450,19 +618,19 @@ const Forms = () => {
             ) {
               return false;
             }
-            // EOL remove hidden question init value
-
-            // convert date string to date object for date question
-            if (q?.type === "date" && typeof value === "string") {
-              value = moment(value);
-            }
-            // EOL convert date string to date object for date question
-            return {
-              question: q?.id,
-              value: value,
-            };
+            return true;
           })
-          .filter((x) => x);
+          .map(([key, val]) => {
+            const questionId = isNaN(key) ? key : parseInt(key, 10);
+            const q = questions?.find((q) => q?.id === questionId);
+            const value = Object.keys(cascadeValues).includes(`${q?.id}`)
+              ? cascadeValues[q.id]
+              : transformValue(q?.type, val);
+            return {
+              question: questionId,
+              value,
+            };
+          });
         store.update((s) => {
           s.initialValue = initialValue;
         });
@@ -577,6 +745,7 @@ const Forms = () => {
           return {
             ...qg,
             question: questions,
+            repeatText: qg?.repeat_text,
           };
         });
         setForms({ ...res.data, question_group: questionGroups });
@@ -688,7 +857,7 @@ const Forms = () => {
               <Webform
                 formRef={webformRef}
                 forms={forms}
-                onFinish={onFinish}
+                onFinish={submitFormData}
                 onCompleteFailed={onFinishFailed}
                 onChange={onChange}
                 submitButtonSetting={{ loading: submit }}

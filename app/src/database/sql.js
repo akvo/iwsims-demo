@@ -182,6 +182,61 @@ const truncateTable = async (db, table) => {
   await db.execAsync('PRAGMA foreign_keys = ON');
 };
 
+/**
+ * add a new column to a table if it does not already exist
+ * @param {Object} db - The datdabase connection object.
+ * @param {string} table - the name of the table to add the column to.
+ * @param {string} columnName - the name of the column to add.
+ * @param {string} columnType - the type of the column to add.
+ */
+const addNewColumn = async (db, table, columnName, columnType) => {
+  // Check if the column already exists
+  const rows = await db.getAllAsync(`PRAGMA table_info(${table})`);
+  const existingColumn = rows.find((row) => row?.name === columnName);
+
+  if (!existingColumn) {
+    // Add the new column to the table
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${columnName} ${columnType}`);
+  }
+};
+/**
+ * Drop a column to table if it exists
+ * @param {Object} db - The database connection object.
+ * @param {string} table - The name of the table to drop the column from.
+ * @param {string} columnName - The name of the column to drop.
+ * @returns {Promise<void>} A promise that resolves when the column has been dropped.
+ * @throws {Error} If the column does not exist or if dropping the column fails.
+ * @description SQLite does not support dropping columns directly, so this function creates a new table without the column,
+ * copies the data over, drops the old table, and renames the new table to the original name.
+ * This is a workaround for SQLite's limitations.
+ */
+const dropColumn = async (db, table, columnName) => {
+  // Check if the column already exists
+  const rows = await db.getAllAsync(`PRAGMA table_info(${table})`);
+  const existingColumn = rows.find((row) => row?.name === columnName);
+  // If the column does not exist, return early
+  if (!existingColumn) {
+    return;
+  }
+
+  if (existingColumn) {
+    // SQLite does not support dropping columns directly, so we need to create a new table without the column
+    // and copy the data over
+    const tempTable = `${table}_temp`;
+    await db.execAsync(`CREATE TABLE ${tempTable} AS SELECT * FROM ${table} WHERE 1=0;`);
+    const columns = await db.getAllAsync(`PRAGMA table_info(${table})`);
+    const columnNames = columns
+      .filter((col) => col.name !== columnName)
+      .map((col) => col.name)
+      .join(', ');
+    await db.execAsync(
+      `INSERT INTO ${tempTable} (${columnNames}) SELECT ${columnNames} FROM ${table};`,
+    );
+    await db.execAsync(`DROP TABLE ${table};`);
+    await db.execAsync(`ALTER TABLE ${tempTable} RENAME TO ${table};`);
+  }
+};
+
 const sql = {
   createTable,
   updateRow,
@@ -193,6 +248,8 @@ const sql = {
   executeQuery,
   dropTable,
   truncateTable,
+  addNewColumn,
+  dropColumn,
 };
 
 export default sql;

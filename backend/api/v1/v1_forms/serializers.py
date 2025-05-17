@@ -272,7 +272,7 @@ class ListQuestionGroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = QuestionGroup
-        fields = ["name", "label", "question"]
+        fields = ["name", "label", "question", "repeatable", "repeat_text"]
 
 
 class ListAdministrationCascadeSerializer(serializers.ModelSerializer):
@@ -437,6 +437,8 @@ class FormDataListQuestionSerializer(serializers.ModelSerializer):
 
 class FormDataQuestionGroupSerializer(serializers.ModelSerializer):
     question = serializers.SerializerMethodField()
+    repeatable = serializers.BooleanField(default=False)
+    repeat_text = serializers.CharField(required=False, allow_null=True)
 
     @extend_schema_field(FormDataListQuestionSerializer(many=True))
     def get_question(self, instance: QuestionGroup):
@@ -447,7 +449,9 @@ class FormDataQuestionGroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = QuestionGroup
-        fields = ["id", "label", "name", "question"]
+        fields = [
+            "id", "label", "name", "question", "repeatable", "repeat_text"
+        ]
 
 
 class FormDataSerializer(serializers.ModelSerializer):

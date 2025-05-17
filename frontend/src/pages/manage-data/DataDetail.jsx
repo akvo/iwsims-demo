@@ -153,25 +153,18 @@ const DataDetail = ({
       api
         .get(`data/${id}`)
         .then((res) => {
-          const data = questionGroups.map((qg) => {
-            const question = qg.question
-              .filter((item) => !item?.display_only)
-              .map((q) => {
-                const findData = res.data.find((d) => d.question === q.id);
-                return {
+          const data = questionGroups.map((qg) => ({
+            ...qg,
+            question: qg.question.flatMap((q) =>
+              res.data
+                .filter((r) => r.question === q.id)
+                .map((d) => ({
                   ...q,
-                  value:
-                    findData?.value || findData?.value === 0
-                      ? findData.value
-                      : null,
-                  history: findData?.history || false,
-                };
-              });
-            return {
-              ...qg,
-              question: question,
-            };
-          });
+                  value: d?.value,
+                  history: d?.history || false,
+                }))
+            ),
+          }));
           setDataset(data);
         })
         .catch((e) => {

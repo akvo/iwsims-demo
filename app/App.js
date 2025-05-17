@@ -25,6 +25,7 @@ import {
 } from './src/lib/constants';
 import { tables } from './src/database';
 import sql from './src/database/sql';
+import { m03 } from './src/database/migrations';
 
 export const setNotificationHandler = () =>
   Notifications.setNotificationHandler({
@@ -203,6 +204,14 @@ const App = () => {
       );
       currentDbVersion = 2;
     }
+
+    if (currentDbVersion === 3) {
+      await m03.up(db);
+      currentDbVersion = 4;
+    }
+
+    // eslint-disable-next-line no-console
+    console.info(`Migrating database from version ${currentDbVersion} to ${DATABASE_VERSION}`);
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
   };
 

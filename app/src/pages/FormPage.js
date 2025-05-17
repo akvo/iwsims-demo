@@ -29,6 +29,7 @@ const FormPage = ({ navigation, route }) => {
   const surveyStart = FormState.useState((s) => s.surveyStart);
   const currentValues = FormState.useState((s) => s.currentValues);
   const cascades = FormState.useState((s) => s.cascades);
+  const repeats = FormState.useState((s) => s.repeats);
   const userId = UserState.useState((s) => s.id);
   const [showDialogMenu, setShowDialogMenu] = useState(false);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
@@ -68,6 +69,7 @@ const FormPage = ({ navigation, route }) => {
       s.visitedQuestionGroup = [];
       s.cascades = {};
       s.surveyDuration = 0;
+      s.repeats = {};
     });
   }, [formJSON]);
 
@@ -98,6 +100,7 @@ const FormPage = ({ navigation, route }) => {
         ...currentDataPoint,
         ...saveData,
         duration: duration === 0 ? 1 : duration,
+        repeats: Object.keys(repeats).length ? JSON.stringify(repeats) : null,
       };
       if (isNewSubmission) {
         await crudDataPoints.saveDataPoint(db, payload);
@@ -132,22 +135,23 @@ const FormPage = ({ navigation, route }) => {
   const handleOnSubmitForm = async (values) => {
     try {
       const answers = {};
-      formJSON.question_group
-        .flatMap((qg) => qg.question)
-        .forEach((q) => {
-          const val = values.answers?.[q.id];
-          if (!val && val !== 0) {
-            return;
+      if (values.answers && typeof values.answers === 'object') {
+        Object.entries(values.answers).forEach(([key, val]) => {
+          if (val === undefined || val === null) return;
+          const [questionId] = key.split('-');
+          const question = formJSON.question_group
+            .flatMap((group) => group.question)
+            .find((q) => `${q.id}` === questionId);
+          answers[key] = val;
+          if (question?.type === 'cascade' && Array.isArray(val) && val.length) {
+            const [lastValue] = val.slice(-1);
+            answers[key] = lastValue;
           }
-          answers[q.id] = val;
-          if (q.type === 'cascade' && Array.isArray(val) && val.length) {
-            const [cascadeValue] = val.slice(-1);
-            answers[q.id] = cascadeValue;
-          }
-          if (q.type === 'number') {
-            answers[q.id] = parseFloat(val);
+          if (question?.type === 'number') {
+            answers[key] = parseFloat(val);
           }
         });
+      }
 
       const datapoitName = values?.name || trans.untitled;
       const submitData = {

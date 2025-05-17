@@ -1137,14 +1137,12 @@ class SubmitPendingFormSerializer(serializers.Serializer):
         # check if the form has any approvers in the user's administration
         # if no approvers found, save directly to form data
         if not direct_to_data:
-            adms = (
-                [
+            adms = [user.user_access.administration.pk]
+            if user.user_access.administration.parent:
+                adms = [
                     ac.pk
                     for ac in user.user_access.administration.ancestors
-                ] + [
-                    user.user_access.administration.pk
-                ]
-            )
+                ] + adms
             form_approval = FormApprovalAssignment.objects.filter(
                 form=data["form"],
                 administration__pk__in=adms

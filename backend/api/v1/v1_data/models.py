@@ -105,10 +105,20 @@ class FormData(models.Model):
             "submission_type": self.submission_type,
         }
         answers = {}
+        question_counts = {}
+
         for a in self.data_answer.order_by(
             "question__question_group_id", "question__order"
         ).all():
-            answers.update(a.to_key)
+            q_id = a.question.id
+            if q_id in answers:
+                # If we've seen this question ID before, increment the counter
+                question_counts[q_id] = question_counts.get(q_id, 0) + 1
+                # Use the counter as a suffix
+                answers[f"{q_id}-{question_counts[q_id]}"] = a.to_key[q_id]
+            else:
+                answers.update(a.to_key)
+                question_counts[q_id] = 0
         data.update({"answers": answers})
         json_data = json.dumps(data)
         file_name = f"{str(self.uuid)}.json"

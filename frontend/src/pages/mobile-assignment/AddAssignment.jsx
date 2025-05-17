@@ -306,31 +306,34 @@ const AddAssignment = () => {
                 </Form.Item>
               </div>
             )}
-            {level !== NATIONAL_LEVEL && selectedAdm?.[0]?.children?.length && (
-              <div className="form-row">
-                <Form.Item
-                  name="administrations"
-                  label={text.mobileLabelAdm}
-                  rules={[{ required: true, message: text.mobileAdmRequired }]}
-                >
-                  <AdministrationDropdown
-                    size="large"
-                    width="100%"
-                    direction="vertical"
-                    maxLevel={level}
-                    onChange={(values) => {
-                      if (values) {
-                        setSelectedAdministrations(values);
-                      }
-                    }}
-                    persist={id ? true : false}
-                    allowMultiple
-                    isSelectAllVillage={true}
-                    selectedAdministrations={selectedAdministrations}
-                  />
-                </Form.Item>
-              </div>
-            )}
+            {level !== NATIONAL_LEVEL &&
+              selectedAdm?.[0]?.children?.length > 0 && (
+                <div className="form-row">
+                  <Form.Item
+                    name="administrations"
+                    label={text.mobileLabelAdm}
+                    rules={[
+                      { required: true, message: text.mobileAdmRequired },
+                    ]}
+                  >
+                    <AdministrationDropdown
+                      size="large"
+                      width="100%"
+                      direction="vertical"
+                      maxLevel={level}
+                      onChange={(values) => {
+                        if (values) {
+                          setSelectedAdministrations(values);
+                        }
+                      }}
+                      persist={id ? true : false}
+                      allowMultiple
+                      isSelectAllVillage={true}
+                      selectedAdministrations={selectedAdministrations}
+                    />
+                  </Form.Item>
+                </div>
+              )}
             <div className="form-row">
               <Form.Item
                 name="forms"

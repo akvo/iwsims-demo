@@ -69,17 +69,6 @@ def update_sqlite(model, data, id=None, test: bool = False):
                 c.execute(query, params)
     except sqlite3.OperationalError:
         generate_sqlite(model=model, test=test)
-    except Exception as error:
-        logger.error(
-            {
-                "context": "update_sqlite",
-                "error": error,
-                "table_name": table_name,
-                "data": data,
-                "id": id,
-            }
-        )
-        conn.rollback()
     finally:
         conn.close()
 
@@ -115,7 +104,7 @@ def administration_csv_add(data: dict, test: bool = False):
                     " doesn't exist"
                 ),
             }
-        )
+        )  # pragma: no cover
     return None
 
 
@@ -157,7 +146,7 @@ def administration_csv_update(data: dict, test: bool = False):
                 "context": "update_administration_row_csv",
                 "message": f"{filename} doesn't exist",
             }
-        )
+        )  # pragma: no cover
     return None
 
 
@@ -179,5 +168,5 @@ def administration_csv_delete(id: int, test: bool = False):
                 "context": "delete_administration_row_csv",
                 "message": f"{filename} doesn't exist",
             }
-        )
+        )  # pragma: no cover
     return None

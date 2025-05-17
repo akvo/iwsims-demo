@@ -112,12 +112,14 @@ const handleOnUploadFiles = async (
     try {
       const answers = JSON.parse(d.json);
       const questions = JSON.parse(d.json_form)?.question_group?.flatMap((qg) => qg.question) || [];
-      questions.forEach((q) => {
-        if (questionTypes.includes(q.type)) {
-          const file = answers[q.id];
-          if (file && file.startsWith('file://')) {
-            files.push({ id: q.id, value: file, dataID: d.id });
-          }
+      const questionFiles = questions.filter((q) => questionTypes.includes(q.type));
+      if (!questionFiles.length) return files;
+
+      Object.entries(answers).forEach(([key, value]) => {
+        const [questionId] = key.split('-');
+        const question = questionFiles.find((q) => `${q.id}` === questionId);
+        if (question && value?.startsWith('file://')) {
+          files.push({ id: key, value, dataID: d.id });
         }
       });
       return files;

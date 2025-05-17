@@ -8,13 +8,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   fieldGroupHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
     borderColor: 'grey',
     borderTopWidth: 0.5,
     borderBottomWidth: 0.5,
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 48,
   },
   fieldGroupName: {
+    paddingLeft: 20,
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -22,9 +26,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
   },
   fieldGroupDescription: {
-    paddingVertical: 8,
-    paddingHorizontal: 22,
     fontSize: 14,
+  },
+  fieldGroupCopy: {
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    backgroundColor: '#e5e7eb',
+    borderWidth: 0.5,
+    borderColor: 'grey',
+    height: '100%',
   },
   questionContainer: {
     paddingHorizontal: 10,
@@ -226,6 +236,32 @@ const styles = StyleSheet.create({
   errorText: {
     color: 'red',
     fontStyle: 'italic',
+  },
+  repeatSectionContainer: {
+    marginVertical: 10,
+  },
+  repeatDivider: {
+    backgroundColor: '#dddddd',
+    height: 1.5,
+    marginVertical: 10,
+  },
+  repeatSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#f7f7f7',
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  repeatSectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#444444',
+  },
+  repeatSectionRemove: {
+    padding: 5,
   },
 });
 

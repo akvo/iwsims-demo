@@ -33,7 +33,25 @@ const UpdateForm = ({ navigation, route }) => {
       selectedForm,
       JSON.parse(item.json.replace(/''/g, "'")),
     );
+    const activeForm = JSON.parse(selectedForm?.json);
+    const repeats = {};
+    // Loop over all repeatable question groups
+    activeForm?.question_group?.forEach((group) => {
+      if (group?.repeatable) {
+        // For each question in the group, count how many keys in currentValues contain the question id
+        const repeatCount =
+          group.question.reduce((maxCount, q) => {
+            const count = Object.keys(currentValues).filter((key) => {
+              const [questionId] = key.split('-');
+              return questionId === `${q.id}`;
+            }).length;
+            return Math.max(maxCount, count);
+          }, 0) || 1; // default to 1 if no repeat count found
+        repeats[group.name] = Array.from({ length: repeatCount }, (_, i) => i);
+      }
+    });
     FormState.update((s) => {
+      s.repeats = repeats;
       s.currentValues = currentValues;
       s.prevAdmAnswer = prevAdmAnswer;
     });

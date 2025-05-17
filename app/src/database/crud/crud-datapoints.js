@@ -37,8 +37,9 @@ const dataPointsQuery = () => ({
   },
   saveDataPoint: async (
     db,
-    { form, user, name, geo, submitted, duration, json, submissionType },
+    { form, user, name, geo, submitted, duration, json, submissionType, repeats },
   ) => {
+    const repeatsVal = repeats ? { repeats } : {};
     const submittedAt = submitted ? { submittedAt: new Date().toISOString() } : {};
     const geoVal = geo ? { geo } : {};
     const res = await sql.insertRow(db, 'datapoints', {
@@ -49,16 +50,18 @@ const dataPointsQuery = () => ({
       submitted,
       duration,
       createdAt: new Date().toISOString(),
-      ...submittedAt,
       json: json ? JSON.stringify(json).replace(/'/g, "''") : null,
       submission_type: submissionType,
+      ...submittedAt,
+      ...repeatsVal,
     });
     return res;
   },
   updateDataPoint: async (
     db,
-    { id, name, geo, submitted, duration, submittedAt, syncedAt, json, submissionType },
+    { id, name, geo, submitted, duration, submittedAt, syncedAt, json, submissionType, repeats },
   ) => {
+    const repeatsVal = repeats ? { repeats } : {};
     const submittedVal = submitted !== undefined ? { submitted } : {};
     const res = await sql.updateRow(
       db,
@@ -73,6 +76,7 @@ const dataPointsQuery = () => ({
         json: json ? JSON.stringify(json).replace(/'/g, "''") : null,
         submission_type: submissionType,
         ...submittedVal,
+        ...repeatsVal,
       },
     );
     return res;

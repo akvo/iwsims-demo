@@ -103,11 +103,15 @@ class Command(BaseCommand):
                         label=qg["label"],
                         form=form,
                         order=qg["order"],
+                        repeatable=qg.get("repeatable", False),
+                        repeat_text=qg.get("repeatText"),
                     )
                 else:
                     question_group.name = qg["name"]
                     question_group.label = qg["label"]
                     question_group.order = qg["order"]
+                    question_group.repeatable = qg.get("repeatable", False)
+                    question_group.repeat_text = qg.get("repeatText")
                     question_group.save()
                 for qi, q in enumerate(qg["questions"]):
                     question = Questions.objects.filter(pk=q["id"]).first()

@@ -191,8 +191,19 @@ def sync_pending_form_data(request, version):
     adm_key = str(adm_qs.id) if adm_qs else None
     if adm_key and adm_key in qna:
         adm_id = qna[adm_key]
-    for q in list(qna):
-        answers.append({"question": q, "value": qna[q]})
+    # Handle repeat question values with indexes
+    for q_key in list(qna):
+        """
+        Extract the base question ID from the key
+        Keys can be like "1" or "1-1" or "1-2"
+        where the base question ID is "1"
+        """
+        if '-' in str(q_key):
+            base_q_id = str(q_key).split('-')[0]
+        else:
+            base_q_id = str(q_key)
+        # Add the answer with the original question ID from the key
+        answers.append({"question": base_q_id, "value": qna[q_key]})
     payload = {
         "administration": adm_id,
         "name": request.data.get("name"),

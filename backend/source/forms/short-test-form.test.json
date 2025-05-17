@@ -1172,6 +1172,9 @@
             "min": 1,
             "max": 10
           },
+          "fn": {
+            "fnColor": "#satisfaction_level# > 5 ? \"#38A15A\" : \"#DB3B3B\""
+          },
           "required": true
         },
         {
@@ -1188,6 +1191,53 @@
             "multiline": false,
             "fnString": "#satisfaction_level# > 5 ? \"Good\" : \"Bad\"",
             "fnColor": "#satisfaction_level# > 5 ? \"#38A15A\" : \"#DB3B3B\""
+          },
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": 17030862700009,
+      "name": "testimonials",
+      "label": "Testimonials",
+      "description": "Grab all the testimonials you can get from your clients and add them here.",
+      "order": 9,
+      "repeatable": true,
+      "repeatText": "Client testimonial",
+      "questions": [
+        {
+          "id": 17030862700091,
+          "name": "testimonial",
+          "label": "Please write your testimonial here",
+          "short_label": "Your testimonial",
+          "tooltip": {
+            "text": "Please write your testimonial here"
+          },
+          "meta": false,
+          "order": 1,
+          "type": "text",
+          "required": false,
+          "extra": [
+            {
+              "placement": "after",
+              "content": "Please write at least 10 words"
+            }
+          ]
+        },
+        {
+          "id": 17030862700092,
+          "name": "upload_testimonial",
+          "label": "Upload a screenshot of your testimonial",
+          "short_label": "Upload a screenshot",
+          "meta": false,
+          "type": "attachment",
+          "rule": {
+            "allowedFileTypes": [
+              "jpeg",
+              "jpg",
+              "png",
+              "gif"
+            ]
           },
           "required": false
         }

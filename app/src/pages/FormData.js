@@ -126,6 +126,7 @@ const FormDataPage = ({ navigation, route }) => {
     FormState.update((s) => {
       s.surveyStart = getCurrentTimestamp();
       s.surveyDuration = selectedData?.duration;
+      s.repeats = selectedData?.repeats ? JSON.parse(selectedData?.repeats) : {};
     });
     navigation.navigate('FormPage', {
       ...route?.params,
