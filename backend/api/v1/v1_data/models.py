@@ -84,6 +84,9 @@ class FormData(models.Model):
 
     @property
     def save_to_file(self):
+        # If the data is a child of another form, do not save to file
+        if self.form.parent:
+            return None
         data = {
             "id": self.id,
             "datapoint_name": self.name,
