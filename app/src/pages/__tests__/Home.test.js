@@ -142,29 +142,6 @@ describe('Homepage', () => {
     expect(listForm3).toBeFalsy();
   });
 
-  it('should navigate to ManageForm page when form list pressed', async () => {
-    const mockFindData = mockForms.find((form) => form.id === 1);
-    FormState.update.mockImplementation(() => mockFindData);
-
-    const wrapper = render(<HomePage navigation={mockNavigation} />);
-
-    await waitFor(() => {
-      expect(crudForms.selectLatestFormVersion).toHaveBeenCalledTimes(1);
-    });
-
-    const listForm1 = wrapper.queryByTestId('card-touchable-1');
-    expect(listForm1).toBeTruthy();
-    fireEvent.press(listForm1);
-
-    await waitFor(() => {
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('ManageForm', {
-        formId: 9001,
-        id: 1,
-        name: 'Form 1',
-      });
-    });
-  });
-
   it('should navigate to Users page when back button clicked', async () => {
     const wrapper = render(<HomePage navigation={mockNavigation} />);
 

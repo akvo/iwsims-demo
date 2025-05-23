@@ -51,7 +51,10 @@ class AddNewUserTestCase(TestCase):
         self.assertEqual(user.user_access.role, UserRoleTypes.super_admin)
         # Check UserFomrAccess
         user_forms = user.user_form.all()
-        self.assertEqual(len(user_forms), Forms.objects.count())
+        self.assertEqual(
+            len(user_forms),
+            Forms.objects.filter(parent__isnull=True).count()
+        )
         user_form = user_forms.first()
         self.assertEqual(
             user_form.user_form_access.count(),

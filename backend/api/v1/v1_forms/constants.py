@@ -28,16 +28,6 @@ class QuestionTypes:
     }
 
 
-class SubmissionTypes:
-    registration = 1
-    monitoring = 2
-
-    FieldStr = {
-        registration: "Registration",
-        monitoring: "Monitoring",
-    }
-
-
 class AttributeTypes:
     chart = 1
     aggregate = 2
@@ -63,4 +53,14 @@ class FormAccessTypes:
         read: "Read",
         edit: "Edit",
         approve: "Approve",
+    }
+
+
+class FormTypes:
+    registration = 1
+    monitoring = 2
+
+    FieldStr = {
+        registration: "Registration",
+        monitoring: "Monitoring",
     }

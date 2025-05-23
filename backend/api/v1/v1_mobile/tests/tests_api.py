@@ -26,7 +26,7 @@ class MobileAssignmentApiTest(TestCase):
         self.user_access = Access.objects.create(
             user=self.user, role=role, administration=self.administration
         )
-        self.forms = Forms.objects.all()
+        self.forms = Forms.objects.filter(parent__isnull=True).all()
         self.passcode = 'passcode1234'
         self.mobile_assignment = MobileAssignment.objects.create_assignment(
             user=self.user, name='test', passcode=self.passcode
@@ -54,6 +54,7 @@ class MobileAssignmentApiTest(TestCase):
             dict(serializer.data['formsUrl'][0]),
             {
                 'id': self.forms[0].id,
+                'parentId': None,
                 'version': str(self.forms[0].version),
                 'url': f'/form/{self.forms[0].id}',
             },
@@ -78,6 +79,7 @@ class MobileAssignmentApiTest(TestCase):
             dict(response.data['formsUrl'][0]),
             {
                 'id': self.forms[0].id,
+                'parentId': None,
                 'version': str(self.forms[0].version),
                 'url': f'/form/{self.forms[0].id}',
             },
@@ -131,7 +133,7 @@ class MobileAssignmentApiTest(TestCase):
                 'version',
                 'cascades',
                 'approval_instructions',
-                'submission_types',
+                'parent',
                 'question_group',
             ],
         )

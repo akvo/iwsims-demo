@@ -5,8 +5,8 @@
 	"defaultLanguage": "en",
 	"languages": ["en"],
 	"version": 1,
+	"type": 1,
 	"translations": null,
-	"submission_types": ["registration", "monitoring"],
 	"question_groups": [
 		{
 			"id": 1,
@@ -15,59 +15,18 @@
 			"label": "Primary Information",
 			"questions": [
 				{
-					"id": 1,
-					"order": 1,
-					"name": "reg_or_update",
-					"label": "Is this a new registration or an update?",
-					"type": "option",
-					"required": true,
-					"meta": false,
-					"options": [
-						{
-							"order": 1,
-							"label": "Registration",
-							"value": "new"
-						},
-						{
-							"order": 2,
-							"label": "Update",
-							"value": "update"
-						}
-					],
-					"default_value": {
-						"submission_type": {
-							"monitoring": "update",
-							"registration": "new"
-						}
-					}
-				},
-				{
-					"id": 2,
-					"order": 2,
-					"name": "water_plant_uuid",
-					"label": "Water Plant UUID",
-					"short_label": "Water Plant UUID",
-					"meta": false,
-					"type": "text",
-					"required": true,
-					"meta_uuid": true
-				},
-				{
 					"id": 3,
-					"order": 3,
+					"order": 1,
 					"name": "water_treatment_plant_location",
 					"label": "Water Treatment Plant Location",
 					"short_label": "Water Treatment Plant Location",
 					"type": "administration",
 					"required": true,
-					"meta": true,
-					"disabled": {
-						"submission_type": ["monitoring"]
-					}
+					"meta": true
 				},
 				{
 					"id": 4,
-					"order": 4,
+					"order": 2,
 					"name": "water_treatment_plant_name",
 					"label": "Select Water Treatment Plant",
 					"short_label": "Water Treatment Plant",
@@ -81,14 +40,11 @@
 						"type": "entity",
 						"name": "Water Treatment Plant",
 						"parentId": 3
-					},
-					"disabled": {
-						"submission_type": ["monitoring"]
 					}
 				},
 				{
 					"id": 5,
-					"order": 5,
+					"order": 3,
 					"name": "date_of_inspection",
 					"label": "Date of Inspection",
 					"short_label": "Date of Inspection",
@@ -98,30 +54,24 @@
 				},
 				{
 					"id": 6,
-					"order": 6,
+					"order": 4,
 					"name": "designed_capacity",
 					"label": "What is the designed capacity of the plant in mega litres?",
 					"short_label": "Designed Capacity",
 					"type": "number",
-					"disabled": {
-						"submission_type": ["monitoring"]
-					},
 					"required": true,
 					"meta": false
 				},
 				{
 					"id": 7,
-					"order": 7,
+					"order": 5,
 					"name": "geolocation",
 					"label": "Geolocation",
 					"short_label": "Geolocation",
 					"type": "geo",
 					"required": true,
 					"meta": true,
-					"options": null,
-					"disabled": {
-						"submission_type": ["monitoring"]
-					}
+					"options": null
 				}
 			]
 		},

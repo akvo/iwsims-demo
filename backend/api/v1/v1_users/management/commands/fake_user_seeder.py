@@ -5,7 +5,7 @@ import uuid
 from django.core.management import BaseCommand
 from faker import Faker
 
-from api.v1.v1_profile.constants import UserRoleTypes, UserDesignationTypes
+from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_profile.constants import OrganisationTypes
 from api.v1.v1_profile.models import Levels, Access, Administration
 from api.v1.v1_users.models import SystemUser, Organisation
@@ -41,7 +41,6 @@ def create_user(
         first_name=first_name,
         last_name=last_name,
         phone_number=fake.msisdn(),
-        designation=UserDesignationTypes.sa
     )
     if organisation:
         user.organisation = organisation
@@ -59,7 +58,7 @@ def create_user(
         administration=administration
     )
     if is_superadmin:
-        forms = Forms.objects.all()
+        forms = Forms.objects.filter(parent__isnull=True).all()
         for form in forms:
             user_form, _ = UserForms.objects.get_or_create(
                 user=user,
@@ -75,7 +74,12 @@ def create_user(
                     access_type=FormAccessTypes.approve
                 )
     if not is_superadmin:
-        form = Forms.objects.all().order_by("?").first()
+        form = (
+            Forms.objects
+            .filter(parent__isnull=True)
+            .order_by("?")
+            .first()
+        )
         user_form, _ = UserForms.objects.get_or_create(
             user=user,
             form=form

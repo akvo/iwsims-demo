@@ -2,7 +2,7 @@ import re
 import random
 from faker import Faker
 from django.core.management import BaseCommand
-from api.v1.v1_profile.constants import UserRoleTypes, UserDesignationTypes
+from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_profile.models import Administration, Access, Levels
 from api.v1.v1_users.models import SystemUser, Organisation
 from api.v1.v1_forms.models import (
@@ -32,9 +32,6 @@ def create_approver(form, administration, organisation):
         approver.first_name = administration.name
         approver.last_name = last_name
         approver.phone_number = fake.msisdn()
-        approver.designation = fake.random_element(
-            elements=UserDesignationTypes.FieldStr.keys()
-        )
         approver.save()
         Access.objects.create(
             user=approver,
@@ -65,7 +62,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         test = options.get("test")
-        forms = Forms.objects.all()
+        forms = Forms.objects.filter(parent__isnull=True).all()
         for form in forms:
             last_level = Levels.objects.order_by('-level')[1:2].first()
             administrations = Administration.objects.filter(
@@ -123,7 +120,6 @@ class Command(BaseCommand):
                     submitter.first_name = administration.name
                     submitter.last_name = "User"
                     submitter.phone_number = fake.msisdn()
-                    submitter.designation = UserDesignationTypes.sa
                     submitter.save()
                     Access.objects.create(
                         user=submitter,

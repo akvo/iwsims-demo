@@ -92,7 +92,7 @@ const FormPage = ({ navigation, route }) => {
         submitted: 0,
         duration: surveyDuration,
         json: currentValues || {},
-        submissionType: route.params.submission_type,
+        uuid: route.params?.uuid,
       };
 
       const duration = getDurationInMinutes(surveyStart) + surveyDuration;
@@ -162,7 +162,6 @@ const FormPage = ({ navigation, route }) => {
         submitted: 1,
         duration: surveyDuration,
         json: answers,
-        submissionType: route.params.submission_type,
         uuid: route.params?.uuid,
       };
       const duration = getDurationInMinutes(surveyStart) + surveyDuration;

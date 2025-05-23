@@ -1,7 +1,7 @@
 from django.test import TestCase
 from api.v1.v1_profile.models import Levels
 from api.v1.v1_forms.models import Forms
-from api.v1.v1_data.models import SubmissionTypes, FormData, PendingFormData
+from api.v1.v1_data.models import FormData, PendingFormData
 from api.v1.v1_users.models import SystemUser
 from django.core.management import call_command
 from rest_framework import status
@@ -33,7 +33,6 @@ class MobileAssignmentApiSyncRepeatGroupTest(TestCase):
         self.token = data["syncToken"]
 
     def test_success_save_repeated_values(self):
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "data example-4 #1",
@@ -41,9 +40,7 @@ class MobileAssignmentApiSyncRepeatGroupTest(TestCase):
             "submittedAt": "2025-05-16T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
-                441: "new",
                 442: "John Doe",
                 443: "/attachment/screenshot_likes_uuid23323.jpeg",
                 444: "/attachments/my_works_uuid12333.pdf",

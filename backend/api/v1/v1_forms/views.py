@@ -37,7 +37,7 @@ from utils.custom_serializer_fields import validate_serializers_message
 )
 @api_view(["GET"])
 def list_form(request, version):
-    instance = Forms.objects.all()
+    instance = Forms.objects.filter(parent__isnull=True).all()
     return Response(
         ListFormSerializer(instance=instance, many=True).data,
         status=status.HTTP_200_OK,

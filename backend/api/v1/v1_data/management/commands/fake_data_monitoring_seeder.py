@@ -7,7 +7,6 @@ from api.v1.v1_data.models import (
     PendingDataApproval,
 )
 from api.v1.v1_forms.models import Forms, FormApprovalAssignment
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_data.management.commands.fake_data_seeder import (
     add_fake_answers,
 )
@@ -28,7 +27,6 @@ def seed_data(form, datapoint, user, repeat, approved):
             form=datapoint.form,
             administration=datapoint.administration,
             created_by=user,
-            submission_type=SubmissionTypes.monitoring,
         )
         add_fake_answers(pending_data)
         pendings.append(pending_data)
@@ -101,7 +99,7 @@ class Command(BaseCommand):
         repeat = options.get("repeat")
         approved = options.get("approved")
 
-        forms = Forms.objects.all()
+        forms = Forms.objects.filter(parent__isnull=True).all()
         for form in forms:
             if not test:
                 print(f"Seeding - {form.name}")

@@ -1,10 +1,9 @@
 from django.test import TestCase
 from api.v1.v1_profile.models import Levels
 from api.v1.v1_forms.models import Forms
-from api.v1.v1_data.models import SubmissionTypes
 from api.v1.v1_users.models import SystemUser
-from api.v1.v1_data.models import PendingAnswers, PendingFormData
 from django.core.management import call_command
+from api.v1.v1_data.models import PendingFormData, PendingAnswers
 from rest_framework import status
 from utils.custom_helper import CustomPasscode
 
@@ -35,8 +34,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_text_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "12b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -44,7 +41,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 102: ["female"],
                 103: 62723817,
@@ -54,7 +50,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -65,9 +60,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
 
         a_101 = PendingAnswers.objects.filter(
@@ -84,8 +77,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_number_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "22b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -93,7 +84,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John Doe",
                 102: ["male"],
@@ -103,7 +93,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 106: ["wife__husband__partner"],
                 107: "photo.jpeg",
                 108: "2024-04-29",
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -114,9 +103,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
 
         a_109 = PendingAnswers.objects.filter(
@@ -133,8 +120,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_allowed_zero_required_number_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "32b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -142,7 +127,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "Jane Doe",
                 102: ["female"],
@@ -153,7 +137,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -164,9 +147,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
 
         a_109 = PendingAnswers.objects.filter(
@@ -184,8 +165,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_option_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "42b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -193,7 +172,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John Doe",
                 103: 62723817,
@@ -202,7 +180,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -213,9 +190,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
 
         a_102 = PendingAnswers.objects.filter(
@@ -232,8 +207,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_multiple_options_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "52b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -241,7 +214,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John Doe",
                 102: ["male"],
@@ -251,7 +223,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -262,9 +233,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
         a_106 = PendingAnswers.objects.filter(
             question_id=106, pending_data_id=pending_data.id
@@ -280,8 +249,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_geo_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "62b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -289,7 +256,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John Doe",
                 102: ["male"],
@@ -299,7 +265,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -310,9 +275,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
         a_105 = PendingAnswers.objects.filter(
             question_id=105, pending_data_id=pending_data.id
@@ -326,60 +289,8 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
         ).count()
         self.assertEqual(total_null_answers, 0)
 
-    def test_empty_required_hidden_from_registration_type(self):
-        mobile_adm = self.mobile_user.administrations.first()
-        uuid = "72b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
-        payload = {
-            "formId": self.form.id,
-            "name": "datapoint #1",
-            "duration": 1,
-            "submittedAt": "2024-04-29T02:38:13.807Z",
-            "submitter": self.mobile_user.name,
-            "geo": [6.2088, 106.8456],
-            "submission_type": st,
-            "answers": {
-                101: "Jane Doe",
-                102: ["fale"],
-                103: 62723817,
-                104: mobile_adm.id,
-                105: [6.2088, 106.8456],
-                106: ["children"],
-                107: "photo.jpeg",
-                108: "2024-04-29",
-                109: 0.6,
-                110: uuid,
-                111: "12",
-            },
-        }
-        response = self.client.post(
-            "/api/v1/device/sync",
-            payload,
-            follow=True,
-            content_type="application/json",
-            **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
-        self.assertTrue(pending_data.id)
-        a_112 = PendingAnswers.objects.filter(
-            question_id=112, pending_data_id=pending_data.id
-        ).first()
-        self.assertFalse(a_112)
-        total_null_answers = PendingAnswers.objects.filter(
-            pending_data=pending_data,
-            name__isnull=True,
-            value__isnull=True,
-            options__isnull=True,
-        ).count()
-        self.assertEqual(total_null_answers, 0)
-
     def test_empty_non_required_autofield_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "82b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -387,7 +298,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John",
                 102: ["male"],
@@ -398,7 +308,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo.jpeg",
                 108: "2024-04-29",
                 109: 0.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -409,9 +318,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
         a_111 = PendingAnswers.objects.filter(
             question_id=111, pending_data_id=pending_data.id
@@ -425,58 +332,8 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
         ).count()
         self.assertEqual(total_null_answers, 0)
 
-    def test_empty_required_meta_uuid_type_of_question(self):
-        mobile_adm = self.mobile_user.administrations.first()
-        st = SubmissionTypes.registration
-        payload = {
-            "formId": self.form.id,
-            "name": "datapoint #1",
-            "duration": 1,
-            "submittedAt": "2024-04-29T02:38:13.807Z",
-            "submitter": self.mobile_user.name,
-            "geo": [6.2088, 106.8456],
-            "submission_type": st,
-            "answers": {
-                101: "John non uuid",
-                102: ["male"],
-                103: 62723817,
-                104: mobile_adm.id,
-                105: [6.2088, 106.8456],
-                106: ["wife__husband__partner"],
-                107: "photo.jpeg",
-                108: "2024-04-29",
-                109: 0.6,
-            },
-        }
-        response = self.client.post(
-            "/api/v1/device/sync",
-            payload,
-            follow=True,
-            content_type="application/json",
-            **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, pending_data_answer__name="John non uuid"
-        ).first()
-        self.assertTrue(pending_data.id)
-        self.assertTrue(pending_data.uuid)
-        a_110 = PendingAnswers.objects.filter(
-            question_id=110, pending_data_id=pending_data.id
-        ).first()
-        self.assertFalse(a_110)
-        total_null_answers = PendingAnswers.objects.filter(
-            pending_data=pending_data,
-            name__isnull=True,
-            value__isnull=True,
-            options__isnull=True,
-        ).count()
-        self.assertEqual(total_null_answers, 0)
-
     def test_empty_required_photo_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "92b9ecb2-c400-4b76-bcba-0a70a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -484,7 +341,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "John Doe",
                 102: ["male"],
@@ -494,7 +350,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 106: ["wife__husband__partner"],
                 108: "2024-04-29",
                 109: 7.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -505,9 +360,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
         a_107 = PendingAnswers.objects.filter(
             question_id=107, pending_data_id=pending_data.id
@@ -523,8 +376,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_empty_required_date_type_of_question(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "93b9ecb2-c400-4b76-bcba-0a10a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -532,7 +383,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "Jane Doe",
                 102: ["female"],
@@ -542,7 +392,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 106: ["wife__husband__partner"],
                 107: "photo-123.jpeg",
                 109: 7.6,
-                110: uuid,
             },
         }
         response = self.client.post(
@@ -553,9 +402,7 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
         a_108 = PendingAnswers.objects.filter(
             question_id=108, pending_data_id=pending_data.id
@@ -571,8 +418,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
 
     def test_valid_pending_answers_for_all_questions(self):
         mobile_adm = self.mobile_user.administrations.first()
-        uuid = "94b9ecb2-c400-4b76-bcba-0a20a6942bb6"
-        st = SubmissionTypes.registration
         payload = {
             "formId": self.form.id,
             "name": "datapoint #1",
@@ -580,7 +425,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             "submittedAt": "2024-04-29T02:38:13.807Z",
             "submitter": self.mobile_user.name,
             "geo": [6.2088, 106.8456],
-            "submission_type": st,
             "answers": {
                 101: "Jane Doe",
                 102: ["female"],
@@ -591,7 +435,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
                 107: "photo-123.jpeg",
                 108: "2024-04-29",
                 109: 5.1,
-                110: uuid,
                 111: "10.2",
             },
         }
@@ -603,11 +446,9 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
             **{"HTTP_AUTHORIZATION": f"Bearer {self.token}"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        pending_data = PendingFormData.objects.filter(
-            submission_type=st, uuid=uuid
-        ).first()
+        pending_data = PendingFormData.objects.last()
         self.assertTrue(pending_data.id)
-        self.assertEqual(pending_data.pending_data_answer.count(), 11)
+        self.assertEqual(pending_data.pending_data_answer.count(), 10)
 
         a_101 = pending_data.pending_data_answer.filter(
             question_id=101
@@ -636,9 +477,6 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
         a_109 = pending_data.pending_data_answer.filter(
             question_id=109
         ).first()
-        a_110 = pending_data.pending_data_answer.filter(
-            question_id=110
-        ).first()
         a_111 = pending_data.pending_data_answer.filter(
             question_id=111
         ).first()
@@ -651,5 +489,4 @@ class MobileAssignmentApiSyncEmptyPayloadTest(TestCase):
         self.assertEqual(a_107.name, "photo-123.jpeg")
         self.assertEqual(a_108.name, "2024-04-29")
         self.assertEqual(a_109.value, 5.1)
-        self.assertEqual(a_110.name, uuid)
         self.assertEqual(a_111.name, "10.2")

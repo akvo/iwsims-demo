@@ -5,7 +5,8 @@
     "text": "test",
     "action": ["action #1"]
   },
-  "submission_types": ["registration", "monitoring"],
+  "version": 1,
+  "type": 2,
   "question_groups": [
     {
       "id": 21,
@@ -15,7 +16,7 @@
       "questions": [
         {
           "id": 201,
-          "order": null,
+          "order": 1,
           "name": "name",
           "label": "Name",
           "short_label": "Name",
@@ -26,7 +27,7 @@
         },
         {
           "id": 202,
-          "order": null,
+          "order": 2,
           "name": "gender",
           "label": "Gender",
           "short_label": null,
@@ -66,21 +67,18 @@
         },
         {
           "id": 203,
-          "order": null,
+          "order": 3,
           "name": "phone",
           "label": "Phone Number",
           "short_label": "Phone Number",
           "meta": true,
           "type": "number",
           "attributes": ["chart"],
-          "disabled": {
-            "submission_type": ["monitoring"]
-          },
           "required": true
         },
         {
           "id": 204,
-          "order": null,
+          "order": 4,
           "name": "location",
           "label": "Location",
           "short_label": null,
@@ -90,7 +88,7 @@
         },
         {
           "id": 205,
-          "order": null,
+          "order": 5,
           "name": "example_geolocation",
           "label": "Geolocation",
           "short_label": null,
@@ -100,7 +98,7 @@
         },
         {
           "id": 206,
-          "order": null,
+          "order": 6,
           "name": "family_members",
           "label": "Available Family Members",
           "short_label": "Family Members",
@@ -125,7 +123,7 @@
         },
         {
           "id": 207,
-          "order": null,
+          "order": 7,
           "name": "autofield",
           "label": "Autofield",
           "short_label": null,
@@ -139,21 +137,8 @@
           }
         },
         {
-          "id": 208,
-          "order": null,
-          "name": "hidden",
-          "label": "Hidden",
-          "short_label": null,
-          "type": "text",
-          "meta": true,
-          "required": true,
-          "hidden": {
-            "submission_type": ["registration"]
-          }
-        },
-        {
           "id": 209,
-          "order": null,
+          "order": 8,
           "name": "school_entity",
           "label": "School Entity Cascade",
           "short_label": "School Entity",

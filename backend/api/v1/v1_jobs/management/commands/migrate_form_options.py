@@ -4,7 +4,7 @@ import pandas as pd
 from django.core.management import BaseCommand
 from django.db.models import Max, F
 
-from api.v1.v1_forms.constants import SubmissionTypes, QuestionTypes
+from api.v1.v1_forms.constants import QuestionTypes
 from api.v1.v1_data.models import (
     Answers,
     PendingAnswers,
@@ -15,7 +15,6 @@ from api.v1.v1_data.models import (
 
 
 FILE_DIR = "./source/value_changes"
-submission_types = [SubmissionTypes.registration, SubmissionTypes.monitoring]
 
 
 def list_files_with_prefix(prefix):
@@ -63,7 +62,6 @@ def update_json_file(datapoint_ids: list, model, form_id: int):
         model.objects.filter(
             pk__in=datapoint_ids,
             form=form_id,
-            submission_type__in=submission_types,
         )
         .values("uuid")
         .annotate(

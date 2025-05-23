@@ -29,7 +29,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.fields import ChoiceField
 
-from api.v1.v1_forms.models import Forms, SubmissionTypes
+from api.v1.v1_forms.models import Forms
 from api.v1.v1_jobs.constants import JobStatus, JobTypes, DataDownloadTypes
 from api.v1.v1_jobs.models import Jobs
 from api.v1.v1_jobs.serializers import (
@@ -63,13 +63,6 @@ from utils.custom_serializer_fields import validate_serializers_message
             default=DataDownloadTypes.all,
         ),
         OpenApiParameter(
-            name="submission_type",
-            required=False,
-            enum=SubmissionTypes.FieldStr.keys(),
-            type=OpenApiTypes.NUMBER,
-            location=OpenApiParameter.QUERY,
-        ),
-        OpenApiParameter(
             name="use_label",
             required=False,
             type=OpenApiTypes.BOOL,
@@ -98,9 +91,6 @@ def download_generate(request, version):
             status=status.HTTP_400_BAD_REQUEST,
         )
     administration = serializer.validated_data.get("administration_id")
-    submission_type = 0
-    if serializer.validated_data.get("submission_type"):
-        submission_type = int(serializer.validated_data["submission_type"])
     result = call_command(
         "job_download",
         serializer.validated_data.get("form_id").id,
@@ -109,8 +99,6 @@ def download_generate(request, version):
         administration.id if administration else 0,
         "-t",
         serializer.validated_data.get("type"),
-        "-s",
-        submission_type,
         "-l",
         1 if serializer.validated_data.get("use_label") else 0,
     )

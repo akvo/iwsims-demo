@@ -123,6 +123,10 @@ const uiText = {
     confirmText: 'Apply signature',
     openSignatureButton: 'Open Signature Pad',
     changeSignatureButton: 'Change Signature',
+    newSubmissionText: 'New Submission',
+    datapointLabel: 'Datapoint',
+    viewDetails: 'View details',
+    monitoringForms: 'Monitoring Forms',
   },
   fr: {
     latitude: 'Latitude',
@@ -240,6 +244,10 @@ const uiText = {
     confirmText: 'Appliquer la signature',
     openSignatureButton: 'Ouvrir le pad de signature',
     changeSignatureButton: 'Changer la signature',
+    newSubmissionText: 'Nouvelle soumission',
+    datapointLabel: 'Point de données',
+    viewDetails: 'Voir les détails',
+    monitoringForms: 'Formulaires de surveillance',
   },
 };
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Row, Col, Table, Button, Space, Divider, Tooltip } from "antd";
 import { Link } from "react-router-dom";
-import { api, config, store } from "../../lib";
+import { api, store } from "../../lib";
 
 const UserDetail = ({ record, setDeleteUser, deleting }) => {
   const { user } = store.useState((state) => state);
@@ -83,15 +83,6 @@ const UserDetail = ({ record, setDeleteUser, deleting }) => {
                     <Button size="small">Change Password</Button>
                   </Link>
                 ),
-              },
-              {
-                key: "designation",
-                field: "Designation",
-                value: `${
-                  config?.designations?.find(
-                    (d) => d.id === parseInt(record.designation)
-                  )?.name || "-"
-                }`,
               },
               {
                 key: "phone_number",

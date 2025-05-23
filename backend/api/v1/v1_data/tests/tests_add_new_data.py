@@ -6,7 +6,6 @@ from django.test.utils import override_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from api.v1.v1_forms.models import Forms, FormApprovalAssignment
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_profile.models import Administration
 from api.v1.v1_data.models import FormData, PendingFormData, \
     Answers, PendingAnswers
@@ -43,7 +42,6 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data",
                 "administration": adm.id,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 101,
@@ -126,7 +124,6 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data #2",
                 "administration": adm.id,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 101,
@@ -187,7 +184,6 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data National",
                 "administration": adm.id,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 201,
@@ -258,7 +254,6 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data Entry",
                 "administration": adm.id,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 101,
@@ -323,7 +318,6 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data Entry",
                 "administration": 2,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 101,

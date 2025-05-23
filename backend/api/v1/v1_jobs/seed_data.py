@@ -13,7 +13,6 @@ from api.v1.v1_data.models import (
     Answers,
     FormData,
     AnswerHistory,
-    SubmissionTypes,
 )
 from api.v1.v1_forms.models import Forms
 from api.v1.v1_forms.constants import QuestionTypes
@@ -74,60 +73,23 @@ def collect_answers(user: SystemUser, dp: dict, qs: dict, data_id):
     answerlist = []
     answer_history_list = []
 
-    # set submisstion type
-    submission_type = SubmissionTypes.registration
-    if dp["submission_type"] == dp["submission_type"]:
-        st = getattr(SubmissionTypes, dp["submission_type"])
-        if st:
-            submission_type = st
-
-    # set uuid based on submission type
+    # set uuid
     data_uuid = prev_form_data.uuid if prev_form_data else uuid4()
 
     for a in dp:
-        if a in ["data_id", "submission_type"]:
+        if a in ["data_id"]:
             continue
         if a not in qs:
             continue
         aw = dp[a]
         q = qs[a]
-        if aw != aw and not q.meta_uuid and not q.default_value:
+        if aw != aw:
             continue
         if isinstance(aw, str):
             aw = HText(aw).clean
         if isinstance(aw, float):
             aw = None if math.isnan(aw) else aw
         valid = True
-        if (
-            q.hidden
-            and q.hidden.get("submission_type")
-            and dp["submission_type"] in q.hidden["submission_type"]
-            and aw
-        ):
-            aw = None
-        if (
-            q.disabled
-            and q.disabled.get("submission_type")
-            and dp["submission_type"] in q.disabled["submission_type"]
-        ):
-            # get/replace by answer from prev datapoint
-            aw = None
-            prev_answer = Answers.objects.get(
-                data_id=prev_form_data.id, question_id=q.id
-            )
-            if prev_answer:
-                aw = (
-                    prev_answer.name
-                    or prev_answer.value
-                    or prev_answer.options
-                )
-        if (
-            q.default_value
-            and q.default_value.get("submission_type")
-            and dp["submission_type"] in q.default_value["submission_type"]
-        ):
-            dv = dp["submission_type"].lower()
-            aw = q.default_value["submission_type"][dv]
 
         answer = PendingAnswers(question_id=q.id, created_by=user)
         if q.type == QuestionTypes.administration:
@@ -200,12 +162,6 @@ def collect_answers(user: SystemUser, dp: dict, qs: dict, data_id):
                     )
         if q.type == QuestionTypes.autofield and aw:
             answer.name = aw
-        if q.meta_uuid:
-            if aw:
-                answer.name = aw
-                data_uuid = aw
-            else:
-                answer.name = data_uuid
         if q.type == QuestionTypes.photo and aw:
             answer.name = aw
         if q.type == QuestionTypes.attachment and aw:
@@ -213,7 +169,7 @@ def collect_answers(user: SystemUser, dp: dict, qs: dict, data_id):
         if q.type == QuestionTypes.signature and aw:
             answer.name = aw
         if valid:
-            if data_id and submission_type != SubmissionTypes.monitoring:
+            if data_id:
                 try:
                     form_answer = Answers.objects.get(
                         data_id=data_id, question_id=answer.question_id
@@ -250,8 +206,7 @@ def collect_answers(user: SystemUser, dp: dict, qs: dict, data_id):
         "answerlist": answerlist,
         "name": name,
         "answer_history_list": answer_history_list,
-        "uuid": data_uuid,
-        "submission_type": submission_type,
+        "uuid": data_uuid
     }
     return res
 
@@ -278,13 +233,7 @@ def save_data(user: SystemUser, dp: dict, qs: dict, form_id: int, batch_id):
     answerlist = temp.get("answerlist")
     name = temp.get("name")
     answer_history_list = temp.get("answer_history_list")
-    submission_type = temp.get("submission_type")
     parent = FormData.objects.filter(uuid=temp.get("uuid")).first()
-
-    # make data_id None if monitoring
-    data_id = (
-        data_id if submission_type != SubmissionTypes.monitoring else None
-    )
 
     user_administration = user.user_access.administration
     user_decendants = get_decendants(administration=user_administration)
@@ -292,28 +241,16 @@ def save_data(user: SystemUser, dp: dict, qs: dict, form_id: int, batch_id):
         return None
     if is_super_admin:
         try:
-            if submission_type != SubmissionTypes.monitoring:
-                FormData.objects.filter(pk=data_id).update(
-                    name=name,
-                    form_id=form_id,
-                    administration_id=administration,
-                    geo=geo,
-                    updated_by=user,
-                    updated=timezone.now(),
-                    uuid=temp.get("uuid"),
-                    submission_type=submission_type,
-                )
-                data = FormData.objects.get(pk=data_id)
-            else:
-                data = FormData.objects.create(
-                    name=name,
-                    form_id=form_id,
-                    administration_id=administration,
-                    geo=geo,
-                    created_by=user,
-                    uuid=temp.get("uuid"),
-                    submission_type=submission_type,
-                )
+            FormData.objects.filter(pk=data_id).update(
+                name=name,
+                form_id=form_id,
+                administration_id=administration,
+                geo=geo,
+                updated_by=user,
+                updated=timezone.now(),
+                uuid=temp.get("uuid"),
+            )
+            data = FormData.objects.get(pk=data_id)
         except FormData.DoesNotExist:
             data = FormData.objects.create(
                 name=name,
@@ -322,7 +259,6 @@ def save_data(user: SystemUser, dp: dict, qs: dict, form_id: int, batch_id):
                 geo=geo,
                 created_by=user,
                 uuid=temp.get("uuid"),
-                submission_type=submission_type,
                 parent=parent,
             )
     else:
@@ -336,7 +272,6 @@ def save_data(user: SystemUser, dp: dict, qs: dict, form_id: int, batch_id):
             batch_id=batch_id,
             created_by=user,
             uuid=temp.get("uuid"),
-            submission_type=submission_type,
         )
 
     if is_super_admin:
@@ -390,8 +325,6 @@ def seed_excel_data(job: Jobs, test: bool = False):
             id = question.id
             questions.update({id: question})
     df = df.rename(columns=columns)
-    # lower submission type
-    df["submission_type"] = df["submission_type"].str.lower()
     datapoints = df.to_dict("records")
     if not is_super_admin:
         batch = PendingDataBatch.objects.create(
@@ -462,7 +395,7 @@ def seed_excel_data(job: Jobs, test: bool = False):
                     batch=batch, user=assignment.user, level_id=level
                 )
                 if not test:
-                    submitter = f"{job.user.name}, {job.user.designation_name}"
+                    submitter = f"{job.user.name}"
                     context = {
                         "send_to": [assignment.user.email],
                         "listing": [

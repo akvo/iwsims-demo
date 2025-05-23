@@ -2,14 +2,11 @@ import os
 import pandas as pd
 from django.core.management.base import BaseCommand
 
-from api.v1.v1_forms.models import Forms, SubmissionTypes
+from api.v1.v1_forms.models import Forms
 from api.v1.v1_jobs.job import generate_data_sheet
 from utils.storage import upload
 
 CRONJOB_RESULT_DIR = "cronjob_results"
-submission_types_obj = {
-    v.lower(): k for k, v in SubmissionTypes.FieldStr.items()
-}
 
 
 class Command(BaseCommand):
@@ -26,11 +23,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        submission_type = options.get("submission")
         use_label = options.get("use_label")
         download_type = "all" if not options.get("latest") else "recent"
-        if submission_type:
-            submission_type = submission_types_obj.get(submission_type)
         form_id = options.get("form_id")
         if not form_id:
             print("Please provide form id")
@@ -43,7 +37,6 @@ class Command(BaseCommand):
             writer=writer,
             form=form,
             administration_ids=None,
-            submission_type=submission_type,
             download_type=download_type,
             use_label=use_label,
         )

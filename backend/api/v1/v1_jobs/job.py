@@ -16,7 +16,7 @@ from utils.upload_entities import (
 )
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_forms.models import Forms, QuestionOptions
-from api.v1.v1_forms.constants import SubmissionTypes, QuestionTypes
+from api.v1.v1_forms.constants import QuestionTypes
 from api.v1.v1_jobs.constants import JobStatus, JobTypes
 
 # from api.v1.v1_jobs.functions import HText
@@ -40,19 +40,10 @@ from utils.custom_generator import generate_sqlite
 logger = logging.getLogger(__name__)
 
 
-def download_data(
-    form: Forms, administration_ids, download_type="all", submission_type=None
-):
+def download_data(form: Forms, administration_ids, download_type="all"):
     filter_data = {}
-    if administration_ids and submission_type:
+    if administration_ids:
         filter_data["administration_id__in"] = administration_ids
-    if submission_type:
-        filter_data["submission_type"] = submission_type
-    else:
-        filter_data["submission_type__in"] = [
-            SubmissionTypes.registration,
-            SubmissionTypes.monitoring,
-        ]
     data = form.form_form_data.filter(**filter_data)
     if download_type == "recent":
         latest_per_uuid = (
@@ -82,7 +73,6 @@ def generate_data_sheet(
     writer: pd.ExcelWriter,
     form: Forms,
     administration_ids=None,
-    submission_type: SubmissionTypes = None,
     download_type: str = "all",
     use_label: bool = False,
 ) -> None:
@@ -90,7 +80,6 @@ def generate_data_sheet(
     data = download_data(
         form=form,
         administration_ids=administration_ids,
-        submission_type=submission_type,
         download_type=download_type,
     )
     if len(data):
@@ -152,14 +141,12 @@ def job_generate_data_download(job_id, **kwargs):
         )
     form = Forms.objects.get(pk=job.info.get("form_id"))
     download_type = kwargs.get("download_type")
-    submission_type = kwargs.get("submission_type")
     writer = pd.ExcelWriter(file_path, engine="xlsxwriter")
 
     generate_data_sheet(
         writer=writer,
         form=form,
         administration_ids=administration_ids,
-        submission_type=submission_type,
         download_type=download_type,
         use_label=job.info.get("use_label"),
     )

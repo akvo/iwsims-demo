@@ -5,25 +5,30 @@ from django.db import models
 # Create your models here.
 from api.v1.v1_forms.constants import (
     QuestionTypes,
-    SubmissionTypes,
     AttributeTypes,
     FormAccessTypes,
+    FormTypes,
 )
 from api.v1.v1_profile.models import Administration
 from api.v1.v1_users.models import SystemUser
-from django.contrib.postgres.fields import ArrayField
 
 
 class Forms(models.Model):
     name = models.TextField()
     version = models.IntegerField(default=1)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    submission_types = ArrayField(
-        models.IntegerField(choices=SubmissionTypes.FieldStr.items()),
-        default=list,
+    approval_instructions = models.JSONField(default=None, null=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="children",
+        null=True,
         blank=True,
     )
-    approval_instructions = models.JSONField(default=None, null=True)
+    type = models.IntegerField(
+        choices=FormTypes.FieldStr.items(),
+        default=FormTypes.registration,
+    )
 
     def __str__(self):
         return self.name
@@ -101,11 +106,7 @@ class Questions(models.Model):
     tooltip = models.JSONField(default=None, null=True)
     fn = models.JSONField(default=None, null=True)
     pre = models.JSONField(default=None, null=True)
-    hidden = models.JSONField(default=None, null=True)
     display_only = models.BooleanField(default=False, null=True)
-    default_value = models.JSONField(default=None, null=True)
-    meta_uuid = models.BooleanField(default=False, null=True)
-    disabled = models.JSONField(default=None, null=True)
 
     def __str__(self):
         return f"[TYPE: {self.type}] {self.label}"
@@ -121,7 +122,6 @@ class Questions(models.Model):
             "short_label": self.short_label,
             "type": QuestionTypes.FieldStr.get(self.type),
             "required": self.required,
-            "hidden": self.hidden,
             "rule": self.rule,
             "dependency": self.dependency,
             "options": options,
@@ -130,9 +130,6 @@ class Questions(models.Model):
             "fn": self.fn,
             "pre": self.pre,
             "display_only": self.display_only,
-            "meta_uuid": self.meta_uuid,
-            "default_value": self.default_value,
-            "disabled": self.disabled,
         }
 
     class Meta:

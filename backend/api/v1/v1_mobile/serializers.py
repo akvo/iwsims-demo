@@ -40,6 +40,7 @@ class MobileDataPointDownloadListSerializer(serializers.Serializer):
 
 class MobileFormSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
+    parentId = serializers.ReadOnlyField(source="parent_id")
     version = serializers.CharField()
     url = serializers.SerializerMethodField()
 
@@ -49,7 +50,7 @@ class MobileFormSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Forms
-        fields = ["id", "version", "url"]
+        fields = ["id", "version", "parentId", "url"]
 
 
 class MobileAssignmentFormsSerializer(serializers.Serializer):
@@ -60,7 +61,13 @@ class MobileAssignmentFormsSerializer(serializers.Serializer):
 
     @extend_schema_field(MobileFormSerializer(many=True))
     def get_formsUrl(self, obj):
-        return MobileFormSerializer(obj.forms.all(), many=True).data
+        # get all forms and its children forms
+        base_forms = list(obj.forms.all())
+        child_forms = []
+        for form in base_forms:
+            child_forms.extend(list(form.children.all()))
+        forms = base_forms + child_forms
+        return MobileFormSerializer(instance=forms, many=True).data
 
     def get_syncToken(self, obj):
         return str(MobileAssignmentToken.for_assignment(obj))
@@ -140,7 +147,10 @@ class FormsAndEntityValidation(serializers.PrimaryKeyRelatedField):
 
 
 class MobileAssignmentSerializer(serializers.ModelSerializer):
-    forms = FormsAndEntityValidation(queryset=Forms.objects.all(), many=True)
+    forms = FormsAndEntityValidation(
+        queryset=Forms.objects.filter(parent__isnull=True).all(),
+        many=True
+    )
     administrations = IdAndNameRelatedField(
         queryset=Administration.objects.all(), many=True
     )

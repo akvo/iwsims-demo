@@ -188,16 +188,44 @@ const truncateTable = async (db, table) => {
  * @param {string} table - the name of the table to add the column to.
  * @param {string} columnName - the name of the column to add.
  * @param {string} columnType - the type of the column to add.
+ * @param {boolean} [nullable=true] - whether the column should be nullable. Defaults to true.
+ * @param {string} [defaultValue=null] - optional default value for the column.
+ * @returns {Promise<boolean>} A promise that resolves to true if the column was added, false if it already existed.
  */
-const addNewColumn = async (db, table, columnName, columnType) => {
+const addNewColumn = async (
+  db,
+  table,
+  columnName,
+  columnType,
+  nullable = true,
+  defaultValue = null,
+) => {
   // Check if the column already exists
   const rows = await db.getAllAsync(`PRAGMA table_info(${table})`);
   const existingColumn = rows.find((row) => row?.name === columnName);
 
   if (!existingColumn) {
+    // Build the ALTER TABLE statement
+    let alterStatement = `ALTER TABLE ${table} ADD COLUMN ${columnName} ${columnType}`;
+
+    // Add NOT NULL constraint if the column is not nullable
+    if (!nullable) {
+      alterStatement += ' NOT NULL';
+    }
+
+    // Add DEFAULT clause if defaultValue is provided
+    if (defaultValue !== null) {
+      // For strings, wrap in quotes. For other types, use as is.
+      const formattedDefault =
+        typeof defaultValue === 'string' ? `'${defaultValue}'` : defaultValue;
+      alterStatement += ` DEFAULT ${formattedDefault}`;
+    }
+
     // Add the new column to the table
-    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${columnName} ${columnType}`);
+    await db.execAsync(alterStatement);
+    return true;
   }
+  return false;
 };
 /**
  * Drop a column to table if it exists

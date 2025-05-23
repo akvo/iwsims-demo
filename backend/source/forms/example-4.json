@@ -1,10 +1,8 @@
 {
   "id": 4,
   "form": "Test Form 4",
-  "submission_types": [
-    "registration",
-    "monitoring"
-  ],
+  "version": 1,
+  "type": 1,
   "question_groups": [
     {
       "id": 44,
@@ -13,23 +11,8 @@
       "label": "Completeness Check",
       "questions": [
         {
-          "id": 441,
-          "order": 1,
-          "name": "reg_or_update",
-          "label": "New registration or update?",
-          "meta": true,
-          "type": "text",
-          "required": true,
-          "default_value": {
-            "submission_type": {
-              "monitoring": "update",
-              "registration": "new"
-            }
-          }
-        },
-        {
           "id": 442,
-          "order": 2,
+          "order": 1,
           "name": "name",
           "label": "Your full name",
           "short_label": "Name",
@@ -39,6 +22,7 @@
         },
         {
           "id": 443,
+          "order": 2,
           "name": "upload_screenshot_proof",
           "label": "Upload a screenshot proving you have followed",
           "short_label": "Upload a screenshot",
@@ -59,6 +43,7 @@
         },
         {
           "id": 444,
+          "order": 3,
           "name": "upload_work",
           "label": "Upload your work to get a chance to win a prize",
           "short_label": "Upload your work",
@@ -74,6 +59,7 @@
         },
         {
           "id": 445,
+          "order": 4,
           "name": "letter_of_application",
           "label": "Letter of application",
           "meta": false,
@@ -116,7 +102,7 @@
       "name": "testimonials",
       "label": "Testimonials",
       "description": "Grab all the testimonials you can get from your clients and add them here.",
-      "order": 9,
+      "order": 3,
       "repeatable": true,
       "repeatText": "Add more",
       "questions": [

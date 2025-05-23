@@ -3,10 +3,7 @@ from django.core.management import call_command
 from api.v1.v1_users.models import SystemUser
 from api.v1.v1_data.models import FormData
 from api.v1.v1_forms.models import Forms, UserForms
-from api.v1.v1_forms.constants import (
-    FormAccessTypes,
-    SubmissionTypes,
-)
+from api.v1.v1_forms.constants import FormAccessTypes
 from api.v1.v1_profile.models import Administration, Access
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_data.management.commands.fake_data_seeder import (
@@ -95,7 +92,7 @@ class MonitoringDataTestCase(TestCase):
         self.assertEqual(edit.status_code, 200)
 
         data = self.client.get(
-            f"/api/v1/form-data/1/{self.form.id}?submission_type=1",
+            f"/api/v1/form-data/{self.form.id}",
             content_type='application/json',
             **{'HTTP_AUTHORIZATION': f'Bearer {self.token}'}
         )
@@ -121,20 +118,19 @@ class MonitoringDataTestCase(TestCase):
             form=self.form,
             administration=self.administration,
             created_by=self.user,
-            submission_type=SubmissionTypes.monitoring,
         )
         add_fake_answers(monitoring)
 
         data = self.client.get(
-            f"/api/v1/form-data/1/{self.form.id}?submission_type=1",
+            f"/api/v1/form-data/{self.form.id}",
             content_type='application/json',
             **{'HTTP_AUTHORIZATION': f'Bearer {self.token}'}
         )
         self.assertEqual(data.status_code, 200)
         data = data.json()
         self.assertEqual(data['total'], 1)
-        api_url = f"/api/v1/form-data/1/{self.form.id}"
-        api_url += f"?parent={monitoring.id}&submission_type=2"
+        api_url = f"/api/v1/form-data/{self.form.id}"
+        api_url += f"?parent={monitoring.id}"
         data_parent = self.client.get(
             api_url,
             content_type='application/json',
@@ -157,7 +153,7 @@ class MonitoringDataTestCase(TestCase):
             add_fake_answers(monitoring)
         lastest = FormData.objects.order_by('-created').first()
         data = self.client.get(
-            f"/api/v1/form-data/1/{self.form.id}",
+            f"/api/v1/form-data/{self.form.id}",
             content_type='application/json',
             **{'HTTP_AUTHORIZATION': f'Bearer {self.token}'}
         )
@@ -169,4 +165,4 @@ class MonitoringDataTestCase(TestCase):
             list(data['data'][0]),
             ['id', 'uuid', 'name', 'form', 'administration',
              'geo', 'created_by', 'updated_by', 'created', 'updated',
-             'pending_data', 'submission_type'])
+             'pending_data'])

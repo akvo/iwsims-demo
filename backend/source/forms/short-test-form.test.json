@@ -5,6 +5,7 @@
   "defaultLanguage": "en",
   "languages": ["en"],
   "version": 1,
+  "type": 1,
   "translations": null,
   "approval_instructions": {
     "text": "Please check all of the checkbox below",
@@ -13,10 +14,6 @@
       "I approve this data for submission"
     ]
   },
-  "submission_types": [
-    "registration",
-    "monitoring"
-  ],
   "question_groups": [
     {
       "id": 16993539153821,
@@ -28,41 +25,8 @@
       "translations": null,
       "questions": [
         {
-          "id": 16993542207341,
-          "order": 1,
-          "name": "new_or_monitoring",
-          "label": "New household registration or Monitoring update?",
-          "short_label": "New or Update",
-          "type": "option",
-          "tooltip": {
-            "text": "Registration of household in IWSIMS (new household) or update of monitoring data (existing household)"
-          },
-          "required": false,
-          "meta": false,
-          "options": [
-            {
-              "order": 1,
-              "label": "New",
-              "value": "new"
-            },
-            {
-              "order": 2,
-              "label": "Update",
-              "value": "update"
-            }
-          ],
-          "dependency": null,
-          "fn": null,
-          "default_value": {
-            "submission_type": {
-              "monitoring": "update",
-              "registration": "new"
-            }
-          }
-        },
-        {
           "id": 16993548493821,
-          "order": 2,
+          "order": 1,
           "name": "household_location",
           "label": "What is the location of the household?",
           "short_label": "Location",
@@ -72,14 +36,11 @@
           },
           "required": true,
           "meta": false,
-          "fn": null,
-          "disabled": {
-            "submission_type": ["monitoring"]
-          }
+          "fn": null
         },
         {
           "id": 17030862702533,
-          "order": 3,
+          "order": 2,
           "name": "school",
           "label": "School Cascade",
           "short_label": "School",
@@ -93,14 +54,11 @@
             "type": "entity",
             "name": "School",
             "parentId": 16993548493821
-          },
-          "disabled": {
-            "submission_type": ["monitoring"]
           }
         },
         {
           "id": 17030862702534,
-          "order": 4,
+          "order": 3,
           "name": "hcf",
           "label": "HCF Cascade",
           "short_label": "HCF",
@@ -114,14 +72,11 @@
             "type": "entity",
             "name": "Health Care Facilities",
             "parentId": 16993548493821
-          },
-          "disabled": {
-            "submission_type": ["monitoring"]
           }
         },
         {
           "id": 17029147539571,
-          "order": 5,
+          "order": 4,
           "name": "hh_geolocation",
           "label": "Geolocation of the household",
           "short_label": "Geolocation",
@@ -130,24 +85,7 @@
           "required": true,
           "meta": true,
           "options": null,
-          "fn": null,
-          "disabled": {
-            "submission_type": ["monitoring"]
-          }
-        },
-        {
-          "id": 17029148037321,
-          "order": 6,
-          "name": "household_code",
-          "label": "Household Code",
-          "short_label": "Code",
-          "type": "text",
-          "tooltip": null,
-          "required": false,
-          "meta": false,
-          "options": null,
-          "dependency": null,
-          "meta_uuid": true
+          "fn": null
         }
       ]
     },
@@ -220,14 +158,11 @@
           "meta": true,
           "options": null,
           "rule": null,
-          "fn": null,
-          "disabled": {
-            "submission_type": ["monitoring"]
-          }
+          "fn": null
         },
         {
           "id": 16994198156601,
-          "order": 7,
+          "order": 3,
           "name": "household_head_age",
           "label": "Household head: age",
           "short_label": "Age",
@@ -245,7 +180,7 @@
         },
         {
           "id": 169941986117211,
-          "order": 8,
+          "order": 4,
           "name": "males_0_5",
           "label": "How many males (0-5 years) live permanently in this house",
           "short_label": "Males (0-5 years)",
@@ -264,7 +199,7 @@
         },
         {
           "id": 169941995152311,
-          "order": 9,
+          "order": 5,
           "name": "females_0_5",
           "label": "How many females (0-5 years) live permanently in this house",
           "short_label": "Females (0-5 years)",
@@ -283,7 +218,7 @@
         },
         {
           "id": 17032657054601,
-          "order": 16,
+          "order": 6,
           "name": "total_family_members",
           "label": "Total number  who live permanently in this house",
           "short_label": "Total Family Members",
@@ -301,7 +236,7 @@
         },
         {
           "id": 16994206218401,
-          "order": 20,
+          "order": 7,
           "name": "at_risk_categories",
           "label": "Household: in any at-risk categories?",
           "short_label": "At-risk Categories",
@@ -432,7 +367,7 @@
         },
         {
           "id": 17030734694661,
-          "order": 21,
+          "order": 8,
           "name": "address",
           "label": "Address or any unique household characteristics",
           "short_label": "Address",
@@ -513,7 +448,7 @@
         },
         {
           "id": 16994233572001,
-          "order": 6,
+          "order": 3,
           "name": "functional_toilet",
           "label": "Functional toilet",
           "short_label": "Functional toilet",
@@ -556,7 +491,7 @@
         },
         {
           "id": 16994235714541,
-          "order": 7,
+          "order": 4,
           "name": "toilet_privacy",
           "label": "Toilet privacy",
           "short_label": "Toilet privacy",
@@ -599,7 +534,7 @@
         },
         {
           "id": 17018105790911,
-          "order": 8,
+          "order": 5,
           "name": "o_r_functional_toilet_with_privacy",
           "label": "Outcome result - Functional toilet with privacy",
           "short_label": "Outcome - Functional toilet with privacy",
@@ -617,7 +552,7 @@
         },
         {
           "id": 16994236967201,
-          "order": 9,
+          "order": 6,
           "name": "toilet_interface",
           "label": "Toilet interface",
           "short_label": null,
@@ -688,7 +623,7 @@
         },
         {
           "id": 16994239461701,
-          "order": 10,
+          "order": 7,
           "name": "containment_or_collection_system",
           "label": "Containment or collection system",
           "short_label": "Containment or collection system",
@@ -781,7 +716,7 @@
         },
         {
           "id": 16994243759681,
-          "order": 11,
+          "order": 8,
           "name": "flyproof_toilet",
           "label": "Flyproof toilet",
           "type": "option",
@@ -868,7 +803,7 @@
         },
         {
           "id": 17022810847861,
-          "order": 12,
+          "order": 9,
           "name": "o_r_flyproof_toilet_type",
           "label": "Outcome result -  Flyproof toilet type",
           "short_label": "Outcome - Flyproof toilet type",
@@ -986,7 +921,7 @@
         },
         {
           "id": 17030862702541,
-          "order": 1,
+          "order": 4,
           "name": "o_r_auto_functional_toilet_with_privacy",
           "label": "Outcome result - Functional toilet with privacy",
           "short_label": "Outcome - Functional toilet with privacy",
@@ -1002,7 +937,7 @@
         },
         {
           "id": 17032625689541,
-          "order": 2,
+          "order": 5,
           "name": "o_r_auto_flyproof_toilet_type",
           "label": "Outcome result - Flyproof toilet type",
           "short_label": "Outcome - Flyproof toilet type",
@@ -1017,35 +952,8 @@
           }
         },
         {
-          "id": 169995172789999,
-          "order": 3,
-          "name": "certification",
-          "label": "Do you certify the community?",
-          "short_label": null,
-          "type": "option",
-          "required": true,
-          "meta": false,
-          "options": [
-            {
-              "order": 1,
-              "label": "Yes",
-              "value": "yes",
-              "color": "green"
-            },
-            {
-              "order": 2,
-              "label": "No",
-              "value": "no",
-              "color": "red"
-            }
-          ],
-          "hidden": {
-            "submission_type": ["registration", "monitoring"]
-          }
-        },
-        {
           "id": 17029148103535,
-          "order": 4,
+          "order": 6,
           "name": "free_required_text",
           "label": "Free Required Text in last question group",
           "short_label": "Text Req",
@@ -1054,12 +962,11 @@
           "required": true,
           "meta": false,
           "options": null,
-          "dependency": null,
-          "meta_uuid": false
+          "dependency": null
         },
         {
           "id": 16994198103536,
-          "order": 5,
+          "order": 7,
           "name": "free_required_number",
           "label": "Free Required Number in last question group",
           "short_label": "Number Req",
@@ -1072,7 +979,7 @@
         },
         {
           "id": 16994198103537,
-          "order": 6,
+          "order": 8,
           "name": "trigger_date",
           "label": "Date Triggered",
           "short_label": null,
@@ -1082,7 +989,7 @@
         },
         {
           "id": 16994198103538,
-          "order": 7,
+          "order": 9,
           "name": "verification_date",
           "label": "Date Verified",
           "short_label": null,
@@ -1104,6 +1011,7 @@
       "questions": [
         {
           "id": 17030862700081,
+          "order": 1,
           "name": "upload_screenshot_proof",
           "label": "Upload a screenshot proving you have followed",
           "short_label": "Upload a screenshot",
@@ -1120,6 +1028,7 @@
         },
         {
           "id": 17030862700082,
+          "order": 2,
           "name": "upload_work",
           "label": "Upload your work to get a chance to win a prize",
           "short_label": "Upload your work",
@@ -1132,8 +1041,10 @@
         },
         {
           "id": 17030862700083,
+          "order": 3,
           "name": "letter_of_application",
           "label": "Letter of application",
+          "short_label": "Letter of application",
           "meta": false,
           "type": "attachment",
           "rule": {
@@ -1148,6 +1059,7 @@
         },
         {
           "id": 17030862700084,
+          "order": 4,
           "name": "signature",
           "label": "Please sign here to confirm your application",
           "short_label": "Please sign here",
@@ -1160,6 +1072,7 @@
         },
         {
           "id": 17030862700085,
+          "order": 5,
           "name": "satisfaction_level",
           "label": "From 1 to 10, how satisfied are you with this form?",
           "short_label": "Your satisfaction level",
@@ -1179,6 +1092,7 @@
         },
         {
           "id": 17030862700086,
+          "order": 6,
           "name": "satisfaction_level_results",
           "label": "Satisfaction level results",
           "short_label": "Satisfaction level results",
@@ -1252,18 +1166,22 @@
           "short_label": "Your occupation",
           "options": [
             {
+              "order": 1,
               "label": "Doctor",
               "value": "doctor"
             },
             {
+              "order": 2,
               "label": "Engineer",
               "value": "engineer"
             },
             {
+              "order": 3,
               "label": "Teacher",
               "value": "teacher"
             },
             {
+              "order": 4,
               "label": "Other",
               "value": "other"
             }
@@ -1316,6 +1234,7 @@
         },
         {
           "id": 17030862700096,
+          "order": 6,
           "name": "seniority_level",
           "label": "Your seniority level",
           "tooltip": {
@@ -1323,7 +1242,6 @@
           },
           "short_label": "Seniority level",
           "meta": false,
-          "order": 6,
           "type": "autofield",
           "required": false,
           "fn": {

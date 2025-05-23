@@ -1,4 +1,4 @@
-from api.v1.v1_profile.constants import UserDesignationTypes, OrganisationTypes
+from api.v1.v1_profile.constants import OrganisationTypes
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from django.core import signing
@@ -42,7 +42,6 @@ class SystemUser(AbstractBaseUser, PermissionsMixin, SoftDeletes):
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     phone_number = models.CharField(max_length=15, default=None, null=True)
-    designation = models.CharField(max_length=50, default=None, null=True)
     trained = models.BooleanField(default=False)
     updated = models.DateTimeField(default=None, null=True)
     organisation = models.ForeignKey(
@@ -76,12 +75,6 @@ class SystemUser(AbstractBaseUser, PermissionsMixin, SoftDeletes):
     @property
     def name(self):
         return "{0} {1}".format(self.first_name, self.last_name)
-
-    @property
-    def designation_name(self):
-        if self.designation:
-            return UserDesignationTypes.FieldStr.get(int(self.designation))
-        return None
 
     def get_sign_pk(self):
         return signing.dumps(self.pk)

@@ -76,7 +76,7 @@ class FormDataUpdateTestCase(TestCase):
         data = data.json()
         self.assertEqual(data, {"message": "ok"})
         # Get all data from form
-        data = self.client.get('/api/v1/form-data/1?submission_type=1&page=1',
+        data = self.client.get('/api/v1/form-data/1?page=1',
                                content_type='application/json',
                                **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
         self.assertEqual(data.status_code, 200)
@@ -118,7 +118,7 @@ class FormDataUpdateTestCase(TestCase):
         data = data.json()
         self.assertEqual(data, {"message": "direct update success"})
         # Get all data from form
-        data = self.client.get('/api/v1/form-data/1?submission_type=1&page=1',
+        data = self.client.get('/api/v1/form-data/1?page=1',
                                content_type='application/json',
                                **{'HTTP_AUTHORIZATION': f'Bearer {token}'})
         self.assertEqual(data.status_code, 200)
@@ -267,7 +267,7 @@ class FormDataUpdateTestCase(TestCase):
         self.assertEqual(response['email'], 'wayan@example.com')
         self.assertEqual(response['role']['id'], UserRoleTypes.admin)
         # Get all data from form
-        data = self.client.get('/api/v1/form-data/1?submission_type=1&page=1',
+        data = self.client.get('/api/v1/form-data/1?page=1',
                                content_type='application/json',
                                **{'HTTP_AUTHORIZATION':
                                    f'Bearer {new_user_user_token}'})
@@ -426,7 +426,7 @@ class FormDataUpdateTestCase(TestCase):
 
         # Get all data from form
         data = self.client.get(
-            '/api/v1/form-data/1?submission_type=1&page=1',
+            '/api/v1/form-data/1?page=1',
             content_type='application/json',
             **{'HTTP_AUTHORIZATION': f'Bearer {reader_user_token}'}
         )

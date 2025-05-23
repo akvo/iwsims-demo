@@ -2,10 +2,7 @@ from django.db import models
 
 # Create your models here.
 from api.v1.v1_data.constants import DataApprovalStatus
-from api.v1.v1_forms.constants import (
-    QuestionTypes,
-    SubmissionTypes,
-)
+from api.v1.v1_forms.constants import QuestionTypes
 from api.v1.v1_forms.models import Forms, Questions
 from api.v1.v1_profile.models import Administration, Levels
 from api.v1.v1_users.models import SystemUser
@@ -35,10 +32,6 @@ class FormData(models.Model):
     )
     geo = models.JSONField(null=True, default=None)
     uuid = models.CharField(max_length=255, default=uuid.uuid4, null=True)
-    submission_type = models.IntegerField(
-        choices=SubmissionTypes.FieldStr.items(),
-        default=SubmissionTypes.registration,
-    )
     created_by = models.ForeignKey(
         to=SystemUser,
         on_delete=models.CASCADE,
@@ -82,9 +75,6 @@ class FormData(models.Model):
                 if self.updated
                 else None
             ),
-            "submission_type": SubmissionTypes().FieldStr[
-                self.submission_type
-            ],
         }
         for a in self.data_answer.order_by(
             "question__question_group_id", "question__order"
@@ -102,7 +92,6 @@ class FormData(models.Model):
             ),
             "uuid": str(self.uuid),
             "geolocation": self.geo,
-            "submission_type": self.submission_type,
         }
         answers = {}
         question_counts = {}
@@ -200,10 +189,6 @@ class PendingFormData(SoftDeletes):
         related_name="pending_data_form_data",
         default=None,
         null=True,
-    )
-    submission_type = models.IntegerField(
-        choices=SubmissionTypes.FieldStr.items(),
-        default=SubmissionTypes.registration,
     )
     administration = models.ForeignKey(
         to=Administration,

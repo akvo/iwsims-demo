@@ -10,7 +10,7 @@ from api.v1.v1_mobile.tests.mixins import AssignmentTokenTestHelperMixin
 from api.v1.v1_profile.models import Levels, Administration
 from api.v1.v1_forms.models import FormApprovalAssignment, Forms
 from api.v1.v1_forms.constants import (
-    SubmissionTypes, QuestionTypes, FormAccessTypes
+    QuestionTypes, FormAccessTypes
 )
 from api.v1.v1_mobile.models import MobileAssignment
 from api.v1.v1_data.models import (
@@ -139,7 +139,6 @@ class DynamicDataApprovalFlowTestCase(
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         response = self.client.post(
@@ -221,7 +220,6 @@ class DynamicDataApprovalFlowTestCase(
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         response = self.client.post(
@@ -321,7 +319,6 @@ class DynamicDataApprovalFlowTestCase(
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         response = self.client.post(
@@ -434,7 +431,6 @@ class DynamicDataApprovalFlowTestCase(
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         response = self.client.post(
@@ -516,10 +512,7 @@ class DynamicDataApprovalFlowTestCase(
         t = RefreshToken.for_user(user)
         header = {"HTTP_AUTHORIZATION": f"Bearer {t.access_token}"}
         response = self.client.get(
-            "/api/v1/form-data/{0}?submission_type={1}".format(
-                self.form.id,
-                SubmissionTypes.registration,
-            ),
+            f"/api/v1/form-data/{self.form.id}",
             content_type="application/json",
             **header
         )
@@ -554,7 +547,6 @@ class DynamicDataApprovalFlowTestCase(
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         response = self.client.post(
@@ -570,10 +562,7 @@ class DynamicDataApprovalFlowTestCase(
         t = RefreshToken.for_user(user)
         header = {"HTTP_AUTHORIZATION": f"Bearer {t.access_token}"}
         response = self.client.get(
-            "/api/v1/form-data/{0}?submission_type={1}".format(
-                self.form.id,
-                SubmissionTypes.registration,
-            ),
+            f"/api/v1/form-data/{self.form.id}",
             content_type="application/json",
             **header
         )

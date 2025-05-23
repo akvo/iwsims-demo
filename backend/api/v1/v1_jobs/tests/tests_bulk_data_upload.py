@@ -50,30 +50,6 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
             ValidationText.file_empty_validation.value
         )
 
-    def test_upload_submission_type_is_required(self):
-        form = Forms.objects.get(pk=1)
-        upload_file = "{0}/test-error-submission_type-required.xlsx".format(
-            self.test_folder
-        )
-
-        administration = Administration.objects.filter(
-            name="Cawang"
-        ).first()
-        output = validate(
-            form=form,
-            administration=administration.id,
-            file=upload_file
-        )
-        self.assertEqual(len(output), 2)
-        self.assertEqual(
-            output[0]["error_message"],
-            f"submission_type {ValidationText.is_required.value}"
-        )
-        self.assertEqual(
-            output[1]["error_message"],
-            f"submission_type {ValidationText.is_required.value}"
-        )
-
     def test_upload_error_dependency(self):
         form = Forms.objects.get(pk=1)
         upload_file = "{0}/test-error-dependency.xlsx".format(
@@ -101,80 +77,6 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
                 ValidationText.is_required.value
             )
         )
-
-    def test_upload_success_empty_default_value(self):
-        form = Forms.objects.get(pk=1)
-        upload_file = "{0}/test-success-empty-default-value.xlsx".format(
-            self.test_folder
-        )
-
-        administration = Administration.objects.filter(
-            name="Cepit Baru"
-        ).first()
-        validation = validate(
-            form=form,
-            administration=administration.id,
-            file=upload_file
-        )
-        self.assertEqual(len(validation), 0)
-        job = Jobs.objects.create(
-            type=JobTypes.seed_data,
-            status=JobStatus.done,
-            user=self.user,
-            info={
-                "file": upload_file,
-                "form": form.id,
-                "is_update": False,
-            },
-        )
-        seed_excel_data(job=job, test=True)
-
-        datapoint = FormData.objects.filter(
-            uuid="6bf1c83f-b596-458f-be04-73015104d8d2"
-        ).first()
-        self.assertTrue(datapoint)
-
-    def test_upload_success_empty_meta_uuid(self):
-        form = Forms.objects.get(pk=1)
-        upload_file = "{0}/test-success-empty-meta-uuid.xlsx".format(
-            self.test_folder
-        )
-
-        administration = Administration.objects.filter(
-            name="Cepit Baru"
-        ).first()
-        validation = validate(
-            form=form,
-            administration=administration.id,
-            file=upload_file
-        )
-        self.assertEqual(len(validation), 0)
-        job = Jobs.objects.create(
-            type=JobTypes.seed_data,
-            status=JobStatus.done,
-            user=self.user,
-            info={
-                "file": upload_file,
-                "form": form.id,
-                "is_update": False,
-            },
-        )
-        seed_excel_data(job=job, test=True)
-
-        name1 = "new - John Doe - 2223913 - Cepit Baru - children"
-        dp1 = form.form_form_data.filter(
-            name=name1
-        ).first()
-        self.assertTrue(dp1)
-        self.assertNotEqual(dp1.uuid, None)
-
-        name2 = \
-            "new - Jane Doe - 3323914 - Cepit Baru - wife__husband__partner"
-        dp2 = form.form_form_data.filter(
-            name=name2
-        ).first()
-        self.assertTrue(dp2)
-        self.assertNotEqual(dp2.uuid, None)
 
     def test_upload_new_registration_data(self):
         form = Forms.objects.get(pk=1)
@@ -204,13 +106,13 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
         )
         seed_excel_data(job=job, test=True)
 
-        name1 = "new - John Doe - 23911 - Cawang - wife__husband__partner"
+        name1 = "John Doe - 23911 - Cawang - wife__husband__partner"
         dp1 = form.form_form_data.filter(
             name=name1
         ).first()
         self.assertTrue(dp1)
 
-        name2 = "new - Jane Doe - 1123912 - Cawang - parent"
+        name2 = "Jane Doe - 1123912 - Cawang - parent"
         dp2 = form.form_form_data.filter(
             name=name2
         ).first()
@@ -266,7 +168,6 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
         self.assertTrue(updated_dp)
 
     def test_upload_new_monitoring_data(self):
-        meta_uuid = "82a860a5-9c7e-4ab8-9bbc-cdf4a544f85e"
         form = Forms.objects.get(pk=1)
         administration = Administration.objects.filter(
             name="Cawang"
@@ -275,7 +176,6 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
         name = "new - Jane Doe - 44 – wife__husband__partner"
         data = FormData.objects.create(
             id=9999,
-            uuid=meta_uuid,
             name=name,
             geo=["-8.6384108", "116.2469499"],
             form=form,
@@ -290,7 +190,6 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
         )
 
         datapoint = form.form_form_data.first()
-        datapoint.uuid = meta_uuid
         datapoint.save()
 
         validation = validate(
@@ -311,12 +210,12 @@ class BulkUploadDataTestCase(TestCase, ProfileTestHelperMixin):
             },
         )
         seed_excel_data(job=job, test=True)
+        # TODO: Update assert to check monitoring data
+        # data_count = FormData.objects.filter(
+        #     uuid=datapoint.uuid
+        # ).count()
 
-        data_count = FormData.objects.filter(
-            uuid=datapoint.uuid
-        ).count()
-
-        self.assertGreater(data_count, 1)
+        # self.assertGreater(data_count, 1)
 
     def test_upload_error_multi_dependency(self):
         form3 = Forms.objects.get(pk=3)

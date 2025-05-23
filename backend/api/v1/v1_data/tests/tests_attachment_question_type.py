@@ -5,7 +5,6 @@ from django.test.utils import override_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from api.v1.v1_forms.models import Forms
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_profile.models import Administration
 from api.v1.v1_profile.tests.mixins import ProfileTestHelperMixin
 
@@ -41,12 +40,8 @@ class AddNewDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Attachment",
                 "administration": self.adm.id,
                 "geo": [7.2088, 126.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
-                "question": 441,
-                "value": "new"
-            }, {
                 "question": 442,
                 "value": "John Doe"
             }, {

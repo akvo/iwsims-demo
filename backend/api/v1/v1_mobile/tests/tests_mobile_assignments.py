@@ -138,8 +138,8 @@ class MobileAssignmentTestCase(TestCase, ProfileTestHelperMixin):
         adm1 = Administration.objects.first()
         adm2 = Administration.objects.all()[1]
         adm3 = Administration.objects.filter(parent=adm2).first()
-        form1 = Forms.objects.first()
-        form2 = Forms.objects.last()
+        form1 = Forms.objects.get(pk=1)
+        form2 = Forms.objects.get(pk=4)
         assignment = MobileAssignment.objects.create_assignment(
                 user=self.user, name='assignment #1')
         assignment.forms.add(form1)

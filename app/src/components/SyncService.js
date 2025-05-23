@@ -134,7 +134,7 @@ const SyncService = () => {
           }),
         );
 
-        await Promise.all(apiURLs.map((u) => downloadDatapointsJson(u)));
+        await Promise.all(apiURLs.map((u) => downloadDatapointsJson(db, u, activeJob.user)));
         await crudJobs.deleteJob(db, activeJob.id);
 
         DatapointSyncState.update((s) => {

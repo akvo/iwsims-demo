@@ -1,10 +1,8 @@
 {
   "id": 3,
   "form": "Test Form 3",
-  "submission_types": [
-    "registration",
-    "monitoring"
-  ],
+  "version": 1,
+  "type": 1,
   "question_groups": [
     {
       "id": 30,
@@ -45,7 +43,7 @@
     },
     {
       "id": 31,
-      "order": 1,
+      "order": 2,
       "name": "sanitation_level",
       "label": "School Sanitation and Hygiene",
       "questions": [

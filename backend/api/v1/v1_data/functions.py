@@ -2,10 +2,9 @@ import re
 import base64
 from django.core.cache import cache
 from datetime import datetime
-from uuid import uuid4
 from django.utils import timezone
 from datetime import timedelta
-from api.v1.v1_forms.constants import QuestionTypes, SubmissionTypes
+from api.v1.v1_forms.constants import QuestionTypes
 from api.v1.v1_data.models import (
     FormData,
     PendingAnswers,
@@ -50,14 +49,6 @@ def set_answer_data(data, question):
         value = fake.random_int(min=10, max=50)
     elif question.type == QuestionTypes.option:
         option = [question.options.order_by("?").first().value]
-        if (
-            question.default_value and "submission_type"
-            in question.default_value
-        ):
-            st_value = SubmissionTypes.FieldStr.get(
-                data.submission_type
-            ).lower()
-            option = [option[0].replace("submission_type", st_value)]
     elif question.type == QuestionTypes.multiple_option:
         option = list(
             question.options.order_by("?")
@@ -112,9 +103,6 @@ def set_answer_data(data, question):
             )
     else:
         pass
-
-    if question.meta_uuid:
-        name = uuid4()
 
     return name, value, option
 

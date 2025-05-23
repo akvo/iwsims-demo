@@ -107,12 +107,6 @@ const Profile = () => {
             </Space>
           </li>
           <li>
-            <h3>{text.userDesignation}</h3>
-            <Space size="large" align="center">
-              <span>{authUser?.designation?.name}</span>
-            </Space>
-          </li>
-          <li>
             <h3>{text.administrationLabel}</h3>
             <p>{fullAdministrationName || authUser?.administration?.name}</p>
           </li>

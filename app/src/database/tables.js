@@ -29,6 +29,7 @@ const tables = [
     name: 'forms',
     fields: {
       id: 'INTEGER PRIMARY KEY NOT NULL',
+      parentId: 'INTEGER NULL',
       userId: 'INTEGER NULL',
       formId: 'INTEGER NOT NULL',
       version: 'VARCHAR(255)',
@@ -44,6 +45,7 @@ const tables = [
       id: 'INTEGER PRIMARY KEY NOT NULL',
       form: 'INTEGER NOT NULL',
       user: 'INTEGER NOT NULL',
+      administrationId: 'INTEGER',
       submitter: 'TEXT',
       name: 'VARCHAR(255)',
       geo: 'VARCHAR(255)',
@@ -53,20 +55,8 @@ const tables = [
       submittedAt: 'DATETIME',
       syncedAt: 'DATETIME',
       json: 'TEXT',
-      submission_type: 'INTEGER DEFAULT "1" NOT NULL',
       uuid: 'VARCHAR(191)',
-    },
-  },
-  {
-    name: 'monitoring',
-    fields: {
-      id: 'INTEGER PRIMARY KEY NOT NULL',
-      formId: 'INTEGER NOT NULL',
-      uuid: 'TEXT type UNIQUE',
-      name: 'VARCHAR(255)',
-      administrationId: 'INTEGER NOT NULL',
-      syncedAt: 'DATETIME',
-      json: 'TEXT',
+      repeats: 'TEXT',
     },
   },
   {

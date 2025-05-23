@@ -1,14 +1,13 @@
 /* eslint-disable no-console */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, FAB } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { Platform, ToastAndroid } from 'react-native';
+import { Platform, ToastAndroid, TouchableOpacity } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import * as Network from 'expo-network';
 import * as Sentry from '@sentry/react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { BaseLayout } from '../components';
+import { BaseLayout, FAButton } from '../components';
 import {
   FormState,
   UserState,
@@ -47,21 +46,21 @@ const Home = ({ navigation, route }) => {
   const { id: currentUserId, name: currentUserName } = UserState.useState((s) => s);
   const subTitleText = currentUserName ? `${trans.userLabel} ${currentUserName}` : null;
 
-  const goToManageForm = (id) => {
+  const goToSubmission = (id) => {
     const findForm = data.find((d) => d?.id === id);
     FormState.update((s) => {
       s.form = findForm;
     });
-    navigation.navigate('ManageForm', { id, name: findForm.name, formId: findForm.formId });
+    navigation.navigate('Submission', { id, name: findForm.name, formId: findForm.formId });
   };
 
   const goToUsers = () => {
     navigation.navigate('Users');
   };
-  const syncAllForms = async (newForms = []) => {
+  const syncAllForms = async (myForms = [], newForms = []) => {
     try {
       await cascades.dropFiles();
-      const endpoints = [...newForms, ...data].map((d) => api.get(`/form/${d.formId}`));
+      const endpoints = [...myForms, ...newForms]?.map((d) => api.get(`/form/${d.formId}`));
       const results = await Promise.allSettled(endpoints);
       const responses = results.filter(({ status }) => status === 'fulfilled');
       const cascadeFiles = responses.flatMap(({ value: res }) => res.data.cascades);
@@ -126,7 +125,7 @@ const Home = ({ navigation, route }) => {
       .filter((f) => !myForms?.map((mf) => mf.formId)?.includes(f.id))
       .map((f) => ({ ...f, formId: f.id }));
 
-    await syncAllForms(newForms);
+    await syncAllForms(myForms, newForms);
   };
 
   const handleOnSync = async () => {
@@ -326,21 +325,20 @@ const Home = ({ navigation, route }) => {
         action: setSearch,
       }}
       leftComponent={
-        <Button type="clear" testID="button-users" onPress={goToUsers}>
+        <TouchableOpacity style={{ paddingTop: 8, paddingLeft: 8 }} onPress={goToUsers}>
           <Icon name="person" size={18} />
-        </Button>
+        </TouchableOpacity>
       }
     >
-      <BaseLayout.Content data={filteredData} action={goToManageForm} columns={2} />
-      <FAB
-        icon={{ name: 'sync', color: 'white' }}
-        size="large"
-        color="#1651b6"
-        title={syncLoading ? trans.syncingText : trans.syncDataPointBtn}
-        style={{ marginBottom: 16 }}
-        disabled={!isOnline || syncLoading || syncDisabled}
+      <BaseLayout.Content data={filteredData} action={goToSubmission} columns={2} />
+      <FAButton
+        label={syncLoading ? trans.syncingText : trans.syncDataPointBtn}
         onPress={handleOnSync}
         testID="sync-datapoint-button"
+        icon={{ name: 'sync', color: 'white' }}
+        customStyle={{ marginBottom: 16 }}
+        backgroundColor="#1651b6"
+        disabled={!isOnline || syncLoading || syncDisabled}
       />
     </BaseLayout>
   );

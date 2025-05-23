@@ -1,3 +1,8 @@
+/**
+ * @module migrations/03_add_repeats_to_datapoints
+ * @description Migration script to add a new column 'repeats' to the 'datapoints' table.
+ * @see {@link https://www.sqlite.org/lang_altertable.html#altertableaddcolumn} for SQLite documentation on adding columns.
+ */
 import sql from '../sql';
 
 const tableName = 'datapoints';

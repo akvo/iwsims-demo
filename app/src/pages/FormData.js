@@ -47,10 +47,6 @@ const FormDataPage = ({ navigation, route }) => {
   const serverURL = BuildParamsState.useState((s) => s.serverURL);
   const db = useSQLiteContext();
 
-  const goBack = () => {
-    navigation.navigate('ManageForm', { ...route?.params });
-  };
-
   const fetchData = useCallback(async () => {
     const submitted = showSubmitted ? 1 : 0;
     let results = await crudDataPoints.selectDataPointsByFormAndSubmitted(db, {
@@ -185,18 +181,14 @@ const FormDataPage = ({ navigation, route }) => {
 
   return (
     <BaseLayout
-      title={route?.params?.name}
+      title={trans.manageEditSavedForm}
+      subTitle={route?.params?.name}
       search={{
         show: true,
         placeholder: trans.formDataSearch,
         value: search,
         action: setSearch,
       }}
-      leftComponent={
-        <Button type="clear" onPress={goBack} testID="arrow-back-button">
-          <Icon name="arrow-back" size={18} />
-        </Button>
-      }
       rightComponent={
         !showSubmitted ||
         (!filteredData.length && !search) ||

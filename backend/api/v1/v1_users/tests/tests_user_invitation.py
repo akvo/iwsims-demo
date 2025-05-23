@@ -66,7 +66,6 @@ class UserInvitationTestCase(TestCase):
             'trained',
             'role',
             'phone_number',
-            'designation',
             'invite',
             'forms',
             'last_login'
@@ -223,7 +222,7 @@ class UserInvitationTestCase(TestCase):
         responses = get_response.json()
         self.assertEqual([
             'first_name', 'last_name', 'email', 'administration',
-            'organisation', 'trained', 'role', 'phone_number', 'designation',
+            'organisation', 'trained', 'role', 'phone_number',
             'forms', 'approval_assignment', 'pending_approval', 'data',
             'pending_batch'
         ], list(responses))
@@ -266,7 +265,7 @@ class UserInvitationTestCase(TestCase):
         responses = get_response.json()
         self.assertEqual([
             'first_name', 'last_name', 'email', 'administration',
-            'organisation', 'trained', 'role', 'phone_number', 'designation',
+            'organisation', 'trained', 'role', 'phone_number',
             'forms', 'approval_assignment', 'pending_approval', 'data',
             'pending_batch'
         ], list(responses))
@@ -572,7 +571,7 @@ class UserInvitationTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([
             'email', 'name', 'administration', 'trained',
-            'role', 'phone_number', 'designation', 'forms',
+            'role', 'phone_number', 'forms',
             'organisation', 'last_login', 'passcode',
         ], list(response.json().keys()))
 

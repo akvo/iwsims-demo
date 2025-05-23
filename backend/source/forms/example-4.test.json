@@ -1,0 +1,132 @@
+{
+  "id": 40004,
+  "form": "Test Form 4 Monitoring",
+  "version": 1,
+  "parent_id": 4,
+  "type": 2,
+  "question_groups": [
+    {
+      "id": 40044,
+      "order": 1,
+      "name": "completeness_check",
+      "label": "Completeness Check",
+      "questions": [
+        {
+          "id": 40442,
+          "order": 1,
+          "name": "name",
+          "label": "Your full name",
+          "short_label": "Name",
+          "meta": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": 40443,
+          "order": 2,
+          "name": "upload_screenshot_proof",
+          "label": "Upload a screenshot proving you have followed",
+          "short_label": "Upload a screenshot",
+          "meta": false,
+          "type": "attachment",
+          "rule": {
+            "allowedFileTypes": [
+              "jpeg",
+              "jpg",
+              "png"
+            ]
+          },
+          "api": {
+            "endpoint": "/api/v1/upload/attachments",
+            "query_params": "?allowed_file_types=jpeg&allowed_file_types=jpg&allowed_file_types=png"
+          },
+          "required": true
+        },
+        {
+          "id": 40444,
+          "order": 3,
+          "name": "upload_work",
+          "label": "Upload your work to get a chance to win a prize",
+          "short_label": "Upload your work",
+          "meta": false,
+          "type": "attachment",
+          "rule": {
+            "allowedFileTypes": []
+          },
+          "api": {
+            "endpoint": "/api/v1/upload/attachments"
+          },
+          "required": true
+        },
+        {
+          "id": 40445,
+          "order": 4,
+          "name": "letter_of_application",
+          "label": "Letter of application",
+          "meta": false,
+          "type": "attachment",
+          "rule": {
+            "allowedFileTypes": [
+              "pdf",
+              "doc",
+              "docx",
+              "odt"
+            ]
+          },
+          "api": {
+            "endpoint": "/api/v1/upload/attachments",
+            "query_params": "?allowed_file_types=pdf&allowed_file_types=doc&allowed_file_types=docx&allowed_file_types=odt"
+          },
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": 40055,
+      "order": 2,
+      "name": "signature",
+      "label": "Signature",
+      "questions": [
+        {
+          "id": 40551,
+          "name": "signature",
+          "label": "Please sign here to confirm that you have read and understood the terms and conditions",
+          "short_label": "Please sign here",
+          "meta": false,
+          "type": "signature",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": 40066,
+      "name": "testimonials",
+      "label": "Testimonials",
+      "description": "Grab all the testimonials you can get from your clients and add them here.",
+      "order": 3,
+      "repeatable": true,
+      "repeatText": "Add more",
+      "questions": [
+        {
+          "id": 40661,
+          "name": "testimonial",
+          "label": "Please write your testimonial here",
+          "short_label": "Your testimonial",
+          "tooltip": {
+            "text": "Please write your testimonial here"
+          },
+          "meta": false,
+          "order": 1,
+          "type": "text",
+          "required": false,
+          "extra": [
+            {
+              "placement": "after",
+              "content": "Please write at least 10 words"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

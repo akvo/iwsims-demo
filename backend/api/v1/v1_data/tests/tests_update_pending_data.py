@@ -4,7 +4,6 @@ from django.db.models import ProtectedError
 
 from api.v1.v1_data.models import Forms, FormData, PendingFormData, \
     PendingAnswers, PendingAnswerHistory
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_users.models import SystemUser
 from api.v1.v1_profile.models import Administration
 from api.v1.v1_profile.tests.mixins import ProfileTestHelperMixin
@@ -45,7 +44,6 @@ class UpdatePendingDataTestCase(TestCase, ProfileTestHelperMixin):
                 "name": "Testing Data Entry",
                 "administration": adm.id,
                 "geo": [6.2088, 106.8456],
-                "submission_type": SubmissionTypes.registration,
             },
             "answer": [{
                 "question": 101,

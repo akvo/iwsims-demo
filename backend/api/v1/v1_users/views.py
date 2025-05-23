@@ -31,7 +31,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from api.v1.v1_forms.models import (
     FormApprovalAssignment,
 )
-from api.v1.v1_data.models import PendingDataApproval, SubmissionTypes
+from api.v1.v1_data.models import PendingDataApproval
 from api.v1.v1_profile.constants import UserRoleTypes, OrganisationTypes
 from api.v1.v1_profile.models import Access, Administration, Levels
 from api.v1.v1_users.models import (
@@ -88,8 +88,7 @@ def send_email_to_user(type, user, request):
     data = {
         "send_to": [user.user.email],
         "listing": listing,
-        "admin": f"""{admin.user.name}, {admin.user.designation_name},
-                {admin.administration.full_name}.""",
+        "admin": f"""{admin.user.name}, {admin.administration.full_name}.""",
     }
     if type == EmailTypes.user_invite:
         data["button_url"] = url
@@ -310,13 +309,6 @@ def set_user_password(request, version):
         OpenApiParameter(
             name="max_level",
             required=False,
-            type=OpenApiTypes.NUMBER,
-            location=OpenApiParameter.QUERY,
-        ),
-        OpenApiParameter(
-            name="submission_type",
-            required=False,
-            enum=SubmissionTypes.FieldStr.keys(),
             type=OpenApiTypes.NUMBER,
             location=OpenApiParameter.QUERY,
         ),

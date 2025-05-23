@@ -13,8 +13,10 @@ const selectDataPointById = async (db, { id }) => {
 
 const dataPointsQuery = () => ({
   selectDataPointById,
-  selectDataPointsByFormAndSubmitted: async (db, { form, submitted, user }) => {
-    const columns = user ? { form, submitted, user } : { form, submitted };
+  selectDataPointsByFormAndSubmitted: async (db, { form, submitted, user, uuid }) => {
+    const uuidVal = uuid ? { uuid } : {};
+    const userVal = user ? { user } : {};
+    const columns = { form, submitted, ...userVal, ...uuidVal };
     const rows = sql.getFilteredRows(db, 'datapoints', { ...columns }, 'syncedAt', 'DESC', true);
     return rows;
   },
@@ -37,29 +39,34 @@ const dataPointsQuery = () => ({
   },
   saveDataPoint: async (
     db,
-    { form, user, name, geo, submitted, duration, json, submissionType, repeats },
+    { uuid, form, user, name, geo, submitted, duration, json, repeats, syncedAt, administrationId },
   ) => {
     const repeatsVal = repeats ? { repeats } : {};
     const submittedAt = submitted ? { submittedAt: new Date().toISOString() } : {};
     const geoVal = geo ? { geo } : {};
+    const uuidVal = uuid ? { uuid } : {};
+    const syncedAtVal = syncedAt ? { syncedAt } : {};
+    const admVal = administrationId ? { administrationId } : {};
     const res = await sql.insertRow(db, 'datapoints', {
       form,
       user,
       name,
-      ...geoVal,
       submitted,
       duration,
       createdAt: new Date().toISOString(),
       json: json ? JSON.stringify(json).replace(/'/g, "''") : null,
-      submission_type: submissionType,
+      ...geoVal,
       ...submittedAt,
       ...repeatsVal,
+      ...uuidVal,
+      ...syncedAtVal,
+      ...admVal,
     });
     return res;
   },
   updateDataPoint: async (
     db,
-    { id, name, geo, submitted, duration, submittedAt, syncedAt, json, submissionType, repeats },
+    { id, name, geo, submitted, duration, submittedAt, syncedAt, json, repeats },
   ) => {
     const repeatsVal = repeats ? { repeats } : {};
     const submittedVal = submitted !== undefined ? { submitted } : {};
@@ -74,7 +81,6 @@ const dataPointsQuery = () => ({
         syncedAt,
         submittedAt: submitted && !submittedAt ? new Date().toISOString() : submittedAt,
         json: json ? JSON.stringify(json).replace(/'/g, "''") : null,
-        submission_type: submissionType,
         ...submittedVal,
         ...repeatsVal,
       },
@@ -91,6 +97,37 @@ const dataPointsQuery = () => ({
       },
     );
     return res;
+  },
+  getByUUID: async (db, { uuid }) => {
+    const res = await sql.getFirstRow(db, 'datapoints', { uuid });
+    return res;
+  },
+  updateByUUID: async (db, { uuid, json, syncedAt }) => {
+    if (!json || typeof json !== 'object') {
+      return false;
+    }
+    const res = await sql.updateRow(
+      db,
+      'datapoints',
+      { uuid },
+      {
+        json: JSON.stringify(json).replace(/'/g, "''"),
+        syncedAt: syncedAt || new Date().toISOString(),
+      },
+    );
+    return res;
+  },
+  countSavedDatapoints: async (db, { form }) => {
+    const rows = await sql.executeQuery(
+      db,
+      `
+        SELECT
+          COUNT(*) AS total
+        FROM datapoints
+        WHERE form = ? AND submitted = 0`,
+      [form],
+    );
+    return rows[0]?.total || 0;
   },
 });
 

@@ -60,6 +60,12 @@ class FormSeederTestCase(TestCase):
             "Water Treatment Plant",
             "Rural Water Supply",
             "EPS Inspection",
+            "EPS Water Quality Testing Monitoring",
+            "Short HH Monitoring",
+            "Short HH Attachments & Testimonials",
+            "Water Treatment Plant Monitoring",
+            "Rural Water Supply Monitoring",
+            "EPS Inspection Monitoring",
         ]
 
         # RUN SEED NEW FORM
@@ -141,7 +147,7 @@ class FormSeederTestCase(TestCase):
         ][0]
         self.assertIn("fn", autofield)
 
-    def test_question_pre_and_hidden_field(self):
+    def test_question_pre_field(self):
         seed_administration_test()
         self.call_command("--test")
         token = self.get_user_token()
@@ -161,12 +167,6 @@ class FormSeederTestCase(TestCase):
             if q["name"] == "gender"
         ][0]
         self.assertIn("pre", gender)
-        hidden = [
-            q
-            for q in data["question_group"][0]["question"]
-            if q["name"] == "hidden"
-        ][0]
-        self.assertIn("hidden", hidden)
 
     def test_display_only_and_monitoring_field(self):
         seed_administration_test()
@@ -194,11 +194,7 @@ class FormSeederTestCase(TestCase):
             for q in data["question_group"][0]["question"]
             if q["name"] == "phone"
         ][0]
-        self.assertIn("disabled", phone)
         self.assertEqual(phone["short_label"], "Phone Number")
-        self.assertEqual(
-            phone["disabled"], {"submission_type": ["monitoring"]}
-        )
 
     def test_repeatable_question_group(self):
         seed_administration_test()
@@ -225,3 +221,14 @@ class FormSeederTestCase(TestCase):
         self.assertEqual(
             question_group["repeat_text"], "Add more"
         )
+
+    def test_form_seeder_with_children(self):
+        seed_administration_test()
+        self.call_command("--test")
+        form_1 = Forms.objects.get(pk=1)
+        form_2 = Forms.objects.get(pk=2)
+
+        self.assertEqual(form_1.name, "Test Form")
+        self.assertEqual(form_2.name, "Test Form 2")
+        self.assertEqual(form_1.children.count(), 1)
+        self.assertEqual(form_2.children.count(), 0)

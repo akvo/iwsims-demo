@@ -23,7 +23,7 @@ const LogoutButton = () => {
     const db = await SQLite.openDatabaseAsync(DATABASE_NAME, {
       useNewConnection: true,
     });
-    const tables = ['sessions', 'users', 'forms', 'config', 'datapoints', 'jobs', 'monitoring'];
+    const tables = ['sessions', 'users', 'forms', 'config', 'datapoints', 'jobs'];
     await Promise.all(
       tables.map(async (table) => {
         await sql.truncateTable(db, table);

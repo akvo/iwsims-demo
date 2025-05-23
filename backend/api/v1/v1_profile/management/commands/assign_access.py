@@ -2,6 +2,7 @@ from django.core.management import BaseCommand
 from api.v1.v1_users.models import SystemUser
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_profile.models import Access, Administration, Levels
+from api.v1.v1_forms.models import Forms, FormAccessTypes
 
 
 class Command(BaseCommand):
@@ -44,6 +45,19 @@ class Command(BaseCommand):
         else:
             access.administration = administration
             access.save()
+        if role == UserRoleTypes.super_admin:
+            # Create all forms for super admin
+            # and give access to all forms
+            forms = Forms.objects.filter(parent__isnull=True).all()
+            for form in forms:
+                user_form = user.user_form.create(
+                    form=form
+                )
+                # Create access for super admin
+                user_form.user_form_access.create(
+                    access_type=FormAccessTypes.edit,
+                )
+            user.save()
         if not options.get("test"):
             self.stdout.write(
                 f"{user.email} now has access to {administration.name}"

@@ -1,9 +1,6 @@
-import * as SQLite from 'expo-sqlite';
-
-import { crudMonitoring } from '../database/crud';
+import { crudDataPoints, crudForms } from '../database/crud';
 import { DatapointSyncState } from '../store';
 import api from './api';
-import { DATABASE_NAME } from './constants';
 
 export const fetchDatapoints = async (pageNumber = 1) => {
   try {
@@ -21,21 +18,39 @@ export const fetchDatapoints = async (pageNumber = 1) => {
   }
 };
 
-export const downloadDatapointsJson = async ({ formId, administrationId, url, lastUpdated }) => {
+export const downloadDatapointsJson = async (
+  db,
+  { formId, administrationId, url, lastUpdated },
+  user,
+) => {
   try {
-    const db = await SQLite.openDatabaseAsync(DATABASE_NAME, {
-      useNewConnection: true,
-    });
     const response = await api.get(url);
     if (response.status === 200) {
       const jsonData = response.data;
-      await crudMonitoring.syncForm(db, {
-        formId,
-        administrationId,
-        lastUpdated,
-        formJSON: jsonData,
-      });
-      await db.closeAsync();
+      const { uuid, datapoint_name: name, geolocation: geo, answers } = jsonData || {};
+      const form = await crudForms.getByFormId(db, { formId });
+      const isExists = await crudDataPoints.getByUUID(db, { uuid });
+      if (isExists) {
+        await crudDataPoints.updateByUUID(db, {
+          uuid,
+          json: answers,
+          syncedAt: lastUpdated,
+        });
+      } else {
+        await crudDataPoints.saveDataPoint(db, {
+          uuid,
+          user,
+          geo,
+          name,
+          administrationId,
+          form: form?.id,
+          submitted: 1,
+          duration: 0,
+          createdAt: new Date().toISOString(),
+          json: answers,
+          syncedAt: lastUpdated,
+        });
+      }
     }
   } catch (error) {
     Promise.reject(error);

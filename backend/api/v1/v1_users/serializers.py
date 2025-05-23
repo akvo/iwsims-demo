@@ -262,7 +262,7 @@ class FormAccessSerializer(serializers.Serializer):
         super().__init__(**kwargs)
         self.fields.get(
             'form_id'
-        ).queryset = Forms.objects.all()
+        ).queryset = Forms.objects.filter(parent__isnull=True).all()
 
     class Meta:
         fields = ["form_id", "access_type"]
@@ -401,7 +401,7 @@ class AddEditUserSerializer(serializers.ModelSerializer):
                     FormAccessTypes.read,
                     FormAccessTypes.edit
                 ]
-                for form in Forms.objects.all():
+                for form in Forms.objects.filter(parent__isnull=True).all():
                     self._create_form_access(user, form, default_access)
             return
 
@@ -417,7 +417,7 @@ class AddEditUserSerializer(serializers.ModelSerializer):
         model = SystemUser
         fields = [
             'first_name', 'last_name', 'email', 'administration',
-            'organisation', 'trained', 'role', 'phone_number', 'designation',
+            'organisation', 'trained', 'role', 'phone_number',
             'access_forms', 'inform_user'
         ]
 
@@ -510,7 +510,7 @@ class ListUserSerializer(serializers.ModelSerializer):
         model = SystemUser
         fields = [
             'id', 'first_name', 'last_name', 'email', 'administration',
-            'organisation', 'trained', 'role', 'phone_number', 'designation',
+            'organisation', 'trained', 'role', 'phone_number',
             'invite', 'forms', 'last_login'
         ]
 
@@ -588,7 +588,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = SystemUser
         fields = [
             'email', 'name', 'administration', 'trained', 'role',
-            'phone_number', 'designation', 'forms', 'organisation',
+            'phone_number', 'forms', 'organisation',
             'last_login', 'passcode',
         ]
 
@@ -652,7 +652,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         model = SystemUser
         fields = [
             'first_name', 'last_name', 'email', 'administration',
-            'organisation', 'trained', 'role', 'phone_number', 'designation',
+            'organisation', 'trained', 'role', 'phone_number',
             'forms', 'approval_assignment', 'pending_approval', 'data',
             'pending_batch'
         ]

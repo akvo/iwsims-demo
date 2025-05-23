@@ -12,7 +12,6 @@ meta_columns = [
     "datapoint_name",
     "administration",
     "geolocation",
-    "submission_type",
 ]
 
 

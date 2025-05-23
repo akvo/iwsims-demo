@@ -35,7 +35,7 @@ class FormSubmissionTestCase(TestCase):
         self.assertEqual(question_group[0].get("name"), "question_group_01")
 
     def test_create_new_submission(self):
-        form = Forms.objects.first()
+        form = Forms.objects.get(pk=1)
         self.assertEqual(form.name, "Test Form")
         adm = Administration.objects.filter(level__level=1).first()
         payload = {

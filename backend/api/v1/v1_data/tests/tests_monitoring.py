@@ -7,7 +7,6 @@ from api.v1.v1_data.models import (
     PendingDataBatch
 )
 from api.v1.v1_forms.models import Forms
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_profile.models import Administration, Access
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_data.tasks import seed_approved_data
@@ -58,8 +57,6 @@ class MonitoringDataTestCase(TestCase):
                 form=self.form,
                 administration=self.administration,
                 created_by=self.user,
-                submission_type=SubmissionTypes.monitoring if i == 0
-                else SubmissionTypes.registration
             )
             add_fake_answers(pending_data)
         self.assertTrue(PendingFormData.objects.count() == 2)
@@ -75,8 +72,6 @@ class MonitoringDataTestCase(TestCase):
         for pending_data in batch.batch_pending_data_batch.all():
             seed_approved_data(pending_data)
         self.assertTrue(FormData.objects.count() == 3)
-        self.assertTrue(FormData.objects.first().submission_type,
-                        SubmissionTypes.registration)
         child_data = FormData.objects.filter(
             parent__isnull=False
         )
@@ -85,9 +80,3 @@ class MonitoringDataTestCase(TestCase):
         self.assertEqual(first_child.parent.uuid, self.uuid)
         self.assertEqual(self.data.children.first().id, first_child.id)
         self.assertEqual(self.data.children.count(), 1)
-        self.assertNotEqual(self.data.submission_type,
-                            first_child.submission_type)
-        self.assertEqual(
-            first_child.submission_type,
-            SubmissionTypes.monitoring
-        )

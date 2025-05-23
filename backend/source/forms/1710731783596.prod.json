@@ -7,54 +7,7 @@
 	"version": 1,
 	"type": 1,
 	"translations": null,
-	"submission_types": ["registration", "monitoring"],
 	"question_groups": [
-		{
-			"id": 17107317835961,
-			"order": 1,
-			"name": "INIT / UPDATE",
-			"label": "INIT / UPDATE",
-			"questions": [
-				{
-					"id": 1530919,
-					"order": 1,
-					"name": "reg_or_update",
-					"label": "Is this a new registration or an update?",
-					"type": "option",
-					"required": true,
-					"meta": false,
-					"options": [
-						{
-							"order": 1,
-							"label": "Registration",
-							"value": "new"
-						},
-						{
-							"order": 2,
-							"label": "Update",
-							"value": "update"
-						}
-					],
-					"default_value": {
-						"submission_type": {
-							"monitoring": "update",
-							"registration": "new"
-						}
-					}
-				},
-				{
-					"id": 1530920,
-					"order": 2,
-					"name": "water_point_uuid",
-					"label": "Water Point UUID",
-					"short_label": "Water Point UUID",
-					"meta": false,
-					"type": "text",
-					"required": true,
-					"meta_uuid": true
-				}
-			]
-		},
 		{
 			"id": 17107317835962,
 			"order": 2,
@@ -68,10 +21,7 @@
 					"label": "Which Village are you in?",
 					"type": "administration",
 					"required": true,
-					"meta": true,
-					"disabled": {
-						"submission_type": ["monitoring"]
-					}
+					"meta": true
 				},
 				{
 					"id": 403570958,
@@ -496,7 +446,7 @@
 				},
 				{
 					"id": 360140967,
-					"order": 12,
+					"order": 11,
 					"name": "current_status_of_the_system",
 					"label": "The current status of this system?",
 					"type": "option",
@@ -530,7 +480,7 @@
 			"questions": [
 				{
 					"id": 7450925,
-					"order": 11,
+					"order": 1,
 					"name": "general_remarks",
 					"label": "General Remarks",
 					"type": "text",

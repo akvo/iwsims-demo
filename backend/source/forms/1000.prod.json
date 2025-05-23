@@ -5,8 +5,8 @@
 	"defaultLanguage": "en",
 	"languages": ["en"],
 	"version": 1,
+	"type": 1,
 	"translations": null,
-	"submission_types": ["registration", "monitoring"],
 	"question_groups": [
 		{
 			"id": 1001,
@@ -15,59 +15,18 @@
 			"label": "Primary Information",
 			"questions": [
 				{
-					"id": 1001,
-					"order": 1,
-					"name": "reg_or_update",
-					"label": "Is this a new registration or an update?",
-					"type": "option",
-					"required": true,
-					"meta": false,
-					"options": [
-						{
-							"order": 1,
-							"label": "Registration",
-							"value": "new"
-						},
-						{
-							"order": 2,
-							"label": "Update",
-							"value": "update"
-						}
-					],
-					"default_value": {
-						"submission_type": {
-							"monitoring": "update",
-							"registration": "new"
-						}
-					}
-				},
-				{
-					"id": 1002,
-					"order": 2,
-					"name": "eps_uuid",
-					"label": "EPS UUID",
-					"short_label": "EPS UUID",
-					"meta": false,
-					"type": "text",
-					"required": true,
-					"meta_uuid": true
-				},
-				{
 					"id": 1003,
-					"order": 3,
+					"order": 1,
 					"name": "rws_location",
 					"label": "Rural Water Supply Location",
 					"short_label": "Rural Water Supply Location",
 					"type": "administration",
 					"required": true,
-					"meta": true,
-					"disabled": {
-						"submission_type": ["monitoring"]
-					}
+					"meta": true
 				},
 				{
 					"id": 1004,
-					"order": 4,
+					"order": 2,
 					"name": "rws_name",
 					"label": "Select Rural Water Supply",
 					"short_label": "Select Rural Water Supply",
@@ -81,14 +40,11 @@
 						"type": "entity",
 						"name": "Rural Water Supply",
 						"parentId": 1003
-					},
-					"disabled": {
-						"submission_type": ["monitoring"]
 					}
 				},
 				{
 					"id": 1005,
-					"order": 5,
+					"order": 3,
 					"name": "inspection_date",
 					"label": "Date of Inspection",
 					"short_label": "Inspection Date",
@@ -107,7 +63,7 @@
 			"questions": [
 				{
 					"id": 1006,
-					"order": 6,
+					"order": 1,
 					"name": "method",
 					"label": "Method of Water Quality Testing",
 					"short_label": "Water Quality Testing Method",
@@ -129,7 +85,7 @@
 				},
 				{
 					"id": 1007,
-					"order": 7,
+					"order": 2,
 					"name": "ecoli_level",
 					"label": "E.Coli Level (MPN/100ml)",
 					"short_label": "E.Coli Level (MPN/100ml)",

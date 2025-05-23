@@ -1,10 +1,9 @@
 {
   "id": 1,
   "form": "Test Form",
-  "submission_types": [
-    "registration",
-    "monitoring"
-  ],
+  "version": 1,
+  "type": 1,
+  "description": "Test Form",
   "question_groups": [
     {
       "id": 11,
@@ -13,24 +12,8 @@
       "label": "Question Group 01",
       "questions": [
         {
-          "id": 113,
-          "order": 1,
-          "name": "reg_or_update",
-          "label": "New registration or Monitoring update?",
-          "short_label": "Name",
-          "meta": true,
-          "type": "text",
-          "required": true,
-          "default_value": {
-            "submission_type": {
-              "monitoring": "update",
-              "registration": "new"
-            }
-          }
-        },
-        {
           "id": 101,
-          "order": 2,
+          "order": 1,
           "name": "name",
           "label": "Name",
           "short_label": "Name",
@@ -40,7 +23,7 @@
         },
         {
           "id": 102,
-          "order": 3,
+          "order": 2,
           "name": "gender",
           "label": "Gender",
           "short_label": null,
@@ -65,7 +48,7 @@
         },
         {
           "id": 103,
-          "order": 4,
+          "order": 3,
           "name": "phone",
           "label": "Phone Number",
           "short_label": "Phone Number",
@@ -76,7 +59,7 @@
         },
         {
           "id": 104,
-          "order": 5,
+          "order": 4,
           "name": "location",
           "label": "Location",
           "short_label": null,
@@ -86,7 +69,7 @@
         },
         {
           "id": 105,
-          "order": 6,
+          "order": 5,
           "name": "example_geolocation",
           "label": "Geolocation",
           "short_label": null,
@@ -96,7 +79,7 @@
         },
         {
           "id": 106,
-          "order": 7,
+          "order": 6,
           "name": "family_members",
           "label": "Available Family Members",
           "short_label": null,
@@ -121,7 +104,7 @@
         },
         {
           "id": 107,
-          "order": 8,
+          "order": 7,
           "name": "picture",
           "label": "Please take a picture",
           "short_label": "Picture",
@@ -131,7 +114,7 @@
         },
         {
           "id": 108,
-          "order": 9,
+          "order": 8,
           "name": "data",
           "label": "Data",
           "short_label": null,
@@ -141,7 +124,7 @@
         },
         {
           "id": 109,
-          "order": 10,
+          "order": 9,
           "name": "decimal",
           "label": "Allow decimal and 0",
           "short_label": "Decimal and 0",
@@ -150,19 +133,8 @@
           "required": false
         },
         {
-          "id": 110,
-          "order": 11,
-          "name": "meta_uuid",
-          "label": "Meta UUID",
-          "short_label": "Meta UUID",
-          "meta": false,
-          "type": "text",
-          "required": true,
-          "meta_uuid": true
-        },
-        {
           "id": 111,
-          "order": 12,
+          "order": 10,
           "name": "multiple_of_two",
           "label": "Multiple of 2",
           "short_label": null,
@@ -177,37 +149,8 @@
           }
         },
         {
-          "id": 112,
-          "order": 13,
-          "name": "verification",
-          "label": "Do you verify the claim?",
-          "short_label": null,
-          "type": "option",
-          "required": true,
-          "meta": false,
-          "options": [
-            {
-              "id": 1121,
-              "order": 1,
-              "label": "Yes",
-              "value": "yes",
-              "color": "green"
-            },
-            {
-              "id": 1122,
-              "order": 2,
-              "label": "No",
-              "value": "no",
-              "color": "red"
-            }
-          ],
-          "hidden": {
-            "submission_type": ["registration", "monitoring"]
-          }
-        },
-        {
           "id": 114,
-          "order": 14,
+          "order": 11,
           "name": "do_you_have_pets",
           "label": "Do you have pets",
           "short_label": null,
@@ -231,7 +174,7 @@
         },
         {
           "id": 115,
-          "order": 15,
+          "order": 12,
           "name": "whats_the_pet",
           "label": "What's the pet?",
           "short_label": null,

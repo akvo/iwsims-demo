@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import { ListItem, Image, Button } from '@rneui/themed';
+import { View, Text, StyleSheet, Alert, SectionList } from 'react-native';
+import { Image, Button } from '@rneui/themed';
 import moment from 'moment';
 import * as Linking from 'expo-linking';
 import { FormState, UIState } from '../../store';
@@ -33,8 +33,11 @@ const SubtitleContent = ({ index, answer, type, source = null, option = [] }) =>
   };
 
   const fetchCascade = useCallback(async () => {
+    const cascadeID = parseInt(answer, 10);
+    if (!cascadeID) {
+      return;
+    }
     if (source) {
-      const cascadeID = parseInt(answer, 10);
       const [csValue, db] = await cascades.loadDataSource(source, cascadeID);
       setCascadeValue(csValue);
       await db.closeAsync();
@@ -58,7 +61,7 @@ const SubtitleContent = ({ index, answer, type, source = null, option = [] }) =>
         </View>
       );
     case QUESTION_TYPES.cascade:
-      return <Text testID={`text-answer-${index}`}>{cascadeValue ? cascadeValue.name : '-'}</Text>;
+      return <Text testID={`text-answer-${index}`}>{cascadeValue?.name || answer}</Text>;
     case QUESTION_TYPES.date:
       return (
         <Text testID={`text-answer-${index}`}>
@@ -118,7 +121,8 @@ const FormDataDetails = ({ navigation, route }) => {
       const [questionID] = key.split('-');
       return questionID === `${questions?.[0]?.id}`;
     }).length || 1;
-  // Create a sections array for the repeatable questions
+
+  // Create sections data for SectionList
   const sections = Array.from({ length: numberOfRepeat }, (_, i) => ({
     repeatIndex: i,
     title: currentGroup?.repeatable
@@ -128,8 +132,60 @@ const FormDataDetails = ({ navigation, route }) => {
       ...q,
       id: i === 0 ? q.id : `${q.id}-${i}`,
       keyform: `${i + 1}.${qx + 1}`,
+      answer: currentValues?.[i === 0 ? q.id : `${q.id}-${i}`],
     })),
   }));
+
+  const renderItem = ({ item: q, index: qIndex }) => {
+    const { label, type, source, option, answer } = q;
+
+    if (q.type === QUESTION_TYPES.attachment && answer) {
+      const fileName = answer.split('/').pop();
+      const fileExtension = fileName.split('.').pop();
+      if (helpers.isImageFile(fileExtension)) {
+        return (
+          <ImageView
+            key={q.id}
+            label={q.label}
+            uri={answer}
+            textTestID={`text-question-${qIndex}`}
+            imageTestID={`image-question-${qIndex}`}
+          />
+        );
+      }
+    }
+    if ([QUESTION_TYPES.photo, QUESTION_TYPES.signature].includes(q.type) && answer) {
+      return (
+        <ImageView
+          key={q.id}
+          label={q.label}
+          uri={answer}
+          textTestID={`text-question-${qIndex}`}
+          imageTestID={`image-question-${qIndex}`}
+        />
+      );
+    }
+    return (
+      <View key={q.keyform} style={styles.listItem}>
+        <View style={styles.listItemContent}>
+          <Text style={styles.listItemTitle} testID={`text-question-${qIndex}`}>
+            {label}
+          </Text>
+          <SubtitleContent
+            index={qIndex}
+            answer={answer}
+            type={type}
+            source={source}
+            option={option}
+          />
+        </View>
+      </View>
+    );
+  };
+
+  const renderSectionHeader = ({ section }) => (
+    <Text style={styles.sectionTitle}>{section.title}</Text>
+  );
 
   useEffect(
     () =>
@@ -149,58 +205,13 @@ const FormDataDetails = ({ navigation, route }) => {
 
   return (
     <BaseLayout title={route?.params?.name} rightComponent={false}>
-      <ScrollView>
-        {sections.map((section) => (
-          <View key={section.repeatIndex}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.data.map((q, qIndex) => {
-              const { id, label, type, source, option } = q;
-              const answer = currentValues?.[id];
-
-              if (q.type === QUESTION_TYPES.attachment && answer) {
-                const fileName = answer.split('/').pop();
-                const fileExtension = fileName.split('.').pop();
-                if (helpers.isImageFile(fileExtension)) {
-                  return (
-                    <ImageView
-                      key={q.id}
-                      label={q.label}
-                      uri={answer}
-                      textTestID={`text-question-${qIndex}`}
-                      imageTestID={`image-question-${qIndex}`}
-                    />
-                  );
-                }
-              }
-              if ([QUESTION_TYPES.photo, QUESTION_TYPES.signature].includes(q.type) && answer) {
-                return (
-                  <ImageView
-                    key={q.id}
-                    label={q.label}
-                    uri={answer}
-                    textTestID={`text-question-${qIndex}`}
-                    imageTestID={`image-question-${qIndex}`}
-                  />
-                );
-              }
-              return (
-                <ListItem key={q.keyform} bottomDivider>
-                  <ListItem.Content>
-                    <ListItem.Title testID={`text-question-${qIndex}`}>{label}</ListItem.Title>
-                    <SubtitleContent
-                      index={qIndex}
-                      answer={answer}
-                      type={type}
-                      source={source}
-                      option={option}
-                    />
-                  </ListItem.Content>
-                </ListItem>
-              );
-            })}
-          </View>
-        ))}
-      </ScrollView>
+      <SectionList
+        sections={sections}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        keyExtractor={(item) => item.keyform}
+        contentContainerStyle={styles.sectionList}
+      />
       <FormDataNavigation
         totalPage={totalPage}
         currentPage={currentPage}
@@ -221,6 +232,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 12,
     paddingHorizontal: 16,
+    backgroundColor: '#f2f2f2',
+  },
+  sectionList: {
+    flexGrow: 1,
   },
   containerImage: {
     display: 'flex',
@@ -238,6 +253,21 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     aspectRatio: 1,
+  },
+  listItem: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  listItemContent: {
+    flex: 1,
+  },
+  listItemTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
 });
 

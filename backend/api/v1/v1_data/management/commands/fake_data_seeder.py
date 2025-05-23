@@ -8,7 +8,6 @@ from faker import Faker
 
 from iwsims.settings import COUNTRY_NAME
 from api.v1.v1_data.models import FormData
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_forms.models import Forms, UserForms, FormApprovalAssignment
 from api.v1.v1_profile.constants import UserRoleTypes
 from api.v1.v1_profile.models import Administration
@@ -84,7 +83,6 @@ def seed_data(
                 form=form,
                 administration=adm_submission,
                 created_by=created_by,
-                submission_type=SubmissionTypes.registration,
             )
             data.created = make_aware(created)
             data.save()
@@ -128,7 +126,7 @@ class Command(BaseCommand):
                     administration=level1_admin,
                     random_password=False
                 )
-        for form in Forms.objects.all():
+        for form in Forms.objects.filter(parent__isnull=True).all():
             if not test:
                 print(f"Seeding - {form.name}")
             administrations = [

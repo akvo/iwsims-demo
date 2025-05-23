@@ -6,7 +6,6 @@ from api.v1.v1_profile.constants import UserRoleTypes
 from django.core.management import call_command
 from api.v1.v1_mobile.models import MobileAssignment
 from api.v1.v1_forms.models import Forms, UserForms
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_data.models import PendingFormData, PendingAnswers
 from rest_framework import status
 
@@ -23,12 +22,10 @@ class MobileAssignmentApiSyncTest(TestCase, AssignmentTokenTestHelperMixin):
             first_name="test",
             last_name="testing",
         )
-        adm1, adm2 = Administration.objects.filter(
-            level__gt=0
-        ).all()[:2]
-        self.administration = adm1
-        self.administration2 = adm2
-        self.form = Forms.objects.first()
+        self.administration = Administration.objects.filter(
+            administration_data_approval__isnull=False,
+        ).last()
+        self.form = Forms.objects.filter(parent__isnull=True).first()
 
         role = UserRoleTypes.admin
         self.user_access = Access.objects.create(
@@ -109,7 +106,6 @@ class MobileAssignmentApiSyncTest(TestCase, AssignmentTokenTestHelperMixin):
             "duration": 3000,
             "submittedAt": "2021-01-01T00:00:00.000Z",
             "geo": [0, 0],
-            "submission_type": SubmissionTypes.registration,
             "answers": answers,
         }
         self.assertEqual(len(answers), len(questions))
@@ -177,7 +173,6 @@ class MobileAssignmentApiSyncTest(TestCase, AssignmentTokenTestHelperMixin):
                 "duration": 3000,
                 "submittedAt": "2021-01-01T00:00:00.000Z",
                 "geo": [0, 0],
-                "submission_type": SubmissionTypes.registration,
                 "answers": {"1": "testing"},
             },  # data is empty
             follow=True,

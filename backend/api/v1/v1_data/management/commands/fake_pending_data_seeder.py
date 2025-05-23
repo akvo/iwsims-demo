@@ -10,7 +10,6 @@ from api.v1.v1_data.models import (
     PendingDataApproval,
     PendingDataBatch,
 )
-from api.v1.v1_forms.constants import SubmissionTypes
 from api.v1.v1_forms.models import FormApprovalAssignment
 from api.v1.v1_forms.models import Forms, UserForms
 from api.v1.v1_profile.constants import UserRoleTypes
@@ -37,7 +36,6 @@ def seed_data(form, fake_geo, repeat, created_by):
             form=form,
             administration=administration,
             created_by=created_by,
-            submission_type=SubmissionTypes.registration,
             submitter=mobile_assignment.name if mobile_assignment else None,
         )
         add_fake_answers(pending_data)
@@ -76,7 +74,10 @@ def assign_batch_for_approval(
     test: bool = False,
 ):
     organisation = Organisation.objects.first()
-    for administration in user.user_access.administration.ancestors.all():
+    parent_adms = [user.user_access.administration]
+    if user.user_access.administration.parent:
+        parent_adms = user.user_access.administration.ancestors.all()
+    for administration in parent_adms:
         # check if approval assignment for the path is not available
         assignment = FormApprovalAssignment.objects.filter(
             form=batch.form, administration=administration
@@ -140,12 +141,15 @@ class Command(BaseCommand):
         PendingFormData.objects.all().delete()
         fake_geo = pd.read_csv(f"./source/{COUNTRY_NAME}_random_points.csv")
         max_adm_level = get_max_administration_level()
-        forms = Forms.objects.all()
+        forms = Forms.objects.filter(parent__isnull=True).all()
         for form in forms:
             submitter = create_or_get_submitter(
                 max_adm_level=max_adm_level
             )
             max_adm_level -= 1
+            # Reset max_adm_level to last level if it is less than 1
+            if max_adm_level < 1:
+                max_adm_level = get_max_administration_level()
             seed_data(
                 form=form,
                 fake_geo=fake_geo,
