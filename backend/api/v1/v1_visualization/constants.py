@@ -102,6 +102,10 @@ class DashboardKind:
 # content (spec D-4).
 EMBED_SNIPPET_MAX = 20000
 
+# Same answer whether the deployment has no embed host or the workspace
+# is not entitled: the caller is deliberately not told which.
+EMBED_UNAVAILABLE = "Embedded dashboards are not available here"
+
 
 class WidgetTypes:
     kpi = 1

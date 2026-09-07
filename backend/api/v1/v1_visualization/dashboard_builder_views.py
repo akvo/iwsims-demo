@@ -27,6 +27,7 @@ from api.v1.v1_profile.constants import FeatureAccessTypes
 from api.v1.v1_visualization.constants import (
     DashboardKind,
     DashboardStatus,
+    EMBED_UNAVAILABLE,
 )
 from api.v1.v1_visualization.dashboard_builder_serializers import (
     DashboardDetailSerializer,
@@ -496,9 +497,10 @@ class DashboardBuilderViewSet(viewsets.ModelViewSet):
             "sees the snippet running on EMBED_HOST rather than in this "
             "application's origin. Unsaved markup has no published "
             "snapshot to serve, so it is parked in the cache behind a "
-            "single-use key and the signed URL names that key. 503 when "
-            "EMBED_HOST is unconfigured, because there is nowhere safe "
-            "to render it."
+            "single-use key and the signed URL names that key. 503 "
+            "when embedding is unavailable -- no EMBED_HOST, so there "
+            "is nowhere safe to render it, or a workspace that is not "
+            "entitled to the feature."
         ),
         parameters=[DASHBOARD_PK],
     )
@@ -516,11 +518,12 @@ class DashboardBuilderViewSet(viewsets.ModelViewSet):
                  "field": "embed_snippet"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        url = preview_url_for(snippet)
+        url = preview_url_for(
+            snippet, getattr(request.user, "tenant", None)
+        )
         if url is None:
             return Response(
-                {"message": "Embedding is not configured for this "
-                            "deployment"},
+                {"message": EMBED_UNAVAILABLE},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         return Response({"embed_url": url})

@@ -71,10 +71,13 @@ describe("EmbedFrame refuses a src it must not frame", () => {
     expect(screen.queryByTitle("Sales")).not.toBeInTheDocument();
   });
 
-  it("reports plainly when embedding is unconfigured", () => {
+  // No src covers both reasons the server declines to mint one — no
+  // embed host on this deployment, and a workspace not entitled to the
+  // feature — and the notice deliberately does not distinguish them.
+  it("reports plainly when there is no embed URL to show", () => {
     render(<EmbedFrame src={null} title="Sales" />);
     expect(screen.queryByTitle("Sales")).not.toBeInTheDocument();
-    expect(screen.getByText(/not configured/i)).toBeInTheDocument();
+    expect(screen.getByText(/not available here/i)).toBeInTheDocument();
   });
 });
 

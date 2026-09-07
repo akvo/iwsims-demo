@@ -33,7 +33,9 @@ PUBLISHED = "<iframe src='https://app.powerbi.com/view?r=published'></iframe>"
 EDITED = "<iframe src='https://app.powerbi.com/view?r=edited'></iframe>"
 
 
-@override_settings(USE_TZ=False, EMBED_HOST=EMBED_ORIGIN)
+@override_settings(
+    USE_TZ=False, EMBED_HOST=EMBED_ORIGIN, EMBED_TENANTS={"default"}
+)
 class EmbedDocumentTestCase(TestCase, ProfileTestHelperMixin):
     def setUp(self):
         call_command("administration_seeder", "--test")
@@ -169,7 +171,9 @@ class EmbedDocumentTestCase(TestCase, ProfileTestHelperMixin):
         self.assertIsNone(self.url(widgets))
 
 
-@override_settings(USE_TZ=False, EMBED_HOST=EMBED_ORIGIN)
+@override_settings(
+    USE_TZ=False, EMBED_HOST=EMBED_ORIGIN, EMBED_TENANTS={"default"}
+)
 class EmbedPreviewTestCase(TestCase, ProfileTestHelperMixin):
     """Preview must show what a viewer sees, including unsaved markup."""
 
@@ -181,6 +185,8 @@ class EmbedPreviewTestCase(TestCase, ProfileTestHelperMixin):
             email="viz_embed_preview@akvo.org",
             role_level=self.IS_SUPER_ADMIN,
         )
+        self.user.tenant = Tenant.objects.get()
+        self.user.save()
         token = RefreshToken.for_user(self.user).access_token
         self.header = {"HTTP_AUTHORIZATION": "Bearer {0}".format(token)}
         self.embed = Dashboard.objects.create(
@@ -319,3 +325,137 @@ class EmbedSubdomainReservationTestCase(TestCase):
     def test_the_rule_is_inert_when_embedding_is_unconfigured(self):
         res = self.register("embed-proxy")
         self.assertLess(res.status_code, 300, res.content)
+
+
+@override_settings(
+    USE_TZ=False, EMBED_HOST=EMBED_ORIGIN, EMBED_TENANTS={"default"}
+)
+class EmbedEntitlementTestCase(TestCase, ProfileTestHelperMixin):
+    """Embedding is a commercial tier, and losing it stops the render.
+
+    The gate that matters is here rather than only where a URL is
+    minted. A signed token is proof of a decision taken up to an hour
+    ago; without a serve-time check, a workspace whose entitlement was
+    revoked would keep rendering for everyone holding a live token —
+    including anonymous readers of a public dashboard, who never make
+    another authenticated request for us to gate.
+    """
+
+    def setUp(self):
+        caches["embed"].clear()
+        call_command("administration_seeder", "--test")
+        call_command("form_seeder", "--test")
+        self.user = self.create_user(
+            email="viz_embed_tier@akvo.org",
+            role_level=self.IS_SUPER_ADMIN,
+        )
+        self.user.tenant = Tenant.objects.get()
+        self.user.save()
+        token = RefreshToken.for_user(self.user).access_token
+        self.header = {"HTTP_AUTHORIZATION": "Bearer {0}".format(token)}
+        self.dashboard = Dashboard.objects.create(
+            name="Sales",
+            slug="sales",
+            kind=DashboardKind.embed,
+            root_form=None,
+            embed_snippet=PUBLISHED,
+            tenant=self.user.tenant,
+            created_by=self.user,
+            status=DashboardStatus.published,
+            is_public=True,
+            published_config={"embed_snippet": PUBLISHED},
+        )
+
+    def retrieve(self):
+        return self.client.get("/api/v1/dashboards/sales").json()
+
+    def fetch(self, url):
+        return self.client.get(
+            url.replace(EMBED_ORIGIN, ""), HTTP_HOST=EMBED_HOSTNAME
+        )
+
+    # ── minting ──
+
+    @override_settings(EMBED_TENANTS={"someone-else"})
+    def test_a_workspace_off_the_whitelist_gets_no_url(self):
+        # Indistinguishable from the deployment having no embed host at
+        # all, which is deliberate: a reader learns nothing about the
+        # workspace's commercial tier from a public page.
+        self.assertIsNone(self.retrieve()["embed_url"])
+
+    # ── serving: revocation stops rendering everywhere ──
+
+    def test_a_token_minted_while_entitled_stops_working_when_revoked(self):
+        url = self.retrieve()["embed_url"]
+        self.assertEqual(self.fetch(url).status_code, 200)
+        with self.settings(EMBED_TENANTS={"someone-else"}):
+            # Same URL, same signature, still inside MAX_AGE. The
+            # entitlement is re-read at serve time, so it 404s.
+            self.assertEqual(self.fetch(url).status_code, 404)
+
+    def test_revocation_is_reversible(self):
+        # Nothing is destroyed by a revocation: the dashboard, its
+        # snapshot and its markup all survive, so restoring the
+        # entitlement restores the render with no author action.
+        url = self.retrieve()["embed_url"]
+        with self.settings(EMBED_TENANTS=set()):
+            self.assertEqual(self.fetch(url).status_code, 404)
+        self.assertEqual(self.fetch(url).status_code, 200)
+
+    # ── preview ──
+
+    def preview(self, snippet):
+        return self.client.post(
+            "/api/v1/manage/dashboards/{0}/embed-preview".format(
+                self.dashboard.id
+            ),
+            json.dumps({"embed_snippet": snippet}),
+            content_type="application/json",
+            **self.header
+        )
+
+    @override_settings(EMBED_TENANTS={"someone-else"})
+    def test_preview_is_refused_for_an_unentitled_workspace(self):
+        res = self.preview("<iframe src='https://x/'></iframe>")
+        self.assertEqual(res.status_code, 503)
+        # The same words a deployment with no embed host gets. A manager
+        # learns the feature is unavailable, not that it is being
+        # withheld from their workspace specifically.
+        self.assertEqual(
+            res.json()["message"], "Embedded dashboards are not available here"
+        )
+
+    def test_a_preview_token_also_stops_working_when_revoked(self):
+        draft = "<iframe src='https://public.tableau.com/draft'></iframe>"
+        url = self.preview(draft).json()["embed_url"]
+        self.assertEqual(self.fetch(url).status_code, 200)
+        with self.settings(EMBED_TENANTS=set()):
+            # The tenant rides inside the signed token: the embed host
+            # is nobody's subdomain and resolves no tenant of its own.
+            self.assertEqual(self.fetch(url).status_code, 404)
+
+    # ── authoring ──
+
+    @override_settings(EMBED_TENANTS={"someone-else"})
+    def test_an_unentitled_workspace_cannot_create_an_embed(self):
+        res = self.client.post(
+            "/api/v1/manage/dashboards",
+            json.dumps({
+                "name": "New",
+                "kind": "embed",
+                "embed_snippet": "<iframe src='https://x/'></iframe>",
+            }),
+            content_type="application/json",
+            **self.header
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["field"], "kind")
+
+    @override_settings(EMBED_TENANTS={"someone-else"})
+    def test_an_existing_embed_survives_revocation_and_stays_readable(self):
+        # A revocation is not a deletion. The row, its snippet and its
+        # snapshot are all still there — only the rendering stops.
+        body = self.retrieve()
+        self.assertEqual(body["slug"], "sales")
+        self.dashboard.refresh_from_db()
+        self.assertEqual(self.dashboard.embed_snippet, PUBLISHED)

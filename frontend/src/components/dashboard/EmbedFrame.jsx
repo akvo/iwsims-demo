@@ -52,9 +52,10 @@ const EmbedFrame = ({ src, title }) => {
   const { language } = store.useState((s) => s);
   const text = useMemo(() => uiText[language.active], [language.active]);
 
-  // No src means EMBED_HOST is unconfigured for this deployment. Say so
-  // plainly; the one thing we must not do is fall back to rendering the
-  // markup here.
+  // No src means the server declined to mint one: no embed host on this
+  // deployment, or a workspace not entitled to the feature. The notice
+  // does not distinguish them, and the one thing we must not do in
+  // either case is fall back to rendering the markup here.
   if (!src || sameOrigin(src)) {
     return (
       <div className="dashboard-embed-frame">

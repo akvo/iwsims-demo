@@ -111,7 +111,7 @@ const uiText = {
       "Pasted exactly as given. A snippet with no width of its own stretches to fill the page; give it a width and height to have it centred instead. If the report requires signing in, visitors will see a login screen even though it looks correct to you.",
     dashboardEmbedBadge: "External",
     dashboardEmbedUnavailable:
-      "This dashboard's external content cannot be shown, because embedding is not configured for this deployment.",
+      "This dashboard's external content cannot be shown, because embedded dashboards are not available here.",
     preview: "Preview",
     publish: "Publish",
     published: "Published",

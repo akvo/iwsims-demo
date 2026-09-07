@@ -454,7 +454,7 @@ class DashboardReadPermissionTestCase(TenantIsolationTestCase):
         )
 
 
-@override_settings(USE_TZ=False)
+@override_settings(USE_TZ=False, EMBED_TENANTS={"default"})
 class EmbedReadTestCase(TestCase, ProfileTestHelperMixin):
     def setUp(self):
         call_command("administration_seeder", "--test")

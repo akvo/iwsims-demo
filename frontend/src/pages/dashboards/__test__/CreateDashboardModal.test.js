@@ -9,10 +9,13 @@ import { store } from "../../../lib";
 
 jest.mock("../../../util/dashboardApi");
 
-// Embedding is only offered where the deployment can render it.
-// `window.appConfig` is the bootstrap script in the real app.
+// Embedding is only offered to a workspace entitled to it. The answer
+// arrives on tenant-info and lands in the store, which is what fetchTenant
+// does in the real app.
 const setEmbedEnabled = (enabled) => {
-  window.appConfig = { ...(window.appConfig || {}), embedEnabled: enabled };
+  store.update((s) => {
+    s.tenant = { subdomain: "acme", embed_enabled: enabled };
+  });
 };
 
 const modal = (visible, onCreate) => (
@@ -109,11 +112,11 @@ describe("CreateDashboardModal kind chooser", () => {
   });
 });
 
-describe("CreateDashboardModal without an embed host", () => {
+describe("CreateDashboardModal without the embed entitlement", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // EMBED_HOST unset: there is nowhere to render an embedded
-    // dashboard, so creating one is not offered at all.
+    // The server says no — no embed host, or a workspace not entitled
+    // to the feature. Either way creating one is not offered.
     setEmbedEnabled(false);
     store.update((s) => {
       s.allForms = [

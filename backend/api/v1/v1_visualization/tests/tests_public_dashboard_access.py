@@ -670,7 +670,7 @@ class CrossTenantIdEscalationTestCase(TenantIsolationTestCase):
         self.assertEqual(res.status_code, 404)
 
 
-@override_settings(USE_TZ=False)
+@override_settings(USE_TZ=False, EMBED_TENANTS={"default"})
 class PublicEmbedDashboardTestCase(TestCase, ProfileTestHelperMixin):
     """An embed's allowlist is empty — spec D-6.
 

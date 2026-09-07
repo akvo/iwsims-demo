@@ -3,7 +3,6 @@ import { Modal, Form, Input, Select, Radio, message } from "antd";
 import { Link } from "react-router-dom";
 import { store, uiText } from "../../lib";
 import dashboardApi from "../../util/dashboardApi";
-import { embedEnabled } from "../../util/tenant";
 
 const CreateDashboardModal = ({ visible, onCancel, onCreate }) => {
   const [form] = Form.useForm();
@@ -14,13 +13,14 @@ const CreateDashboardModal = ({ visible, onCancel, onCreate }) => {
   // then disagrees with it — the body would render the embed field while
   // handleOk, which branches on the form value, posted a widgets payload.
   // One source of truth makes that desync unrepresentable.
-  // Only offered when the deployment has somewhere to render it.
-  // Dashboards of this kind that already exist are unaffected —
-  // this gates creating new ones, not reading old ones.
-  const canEmbed = embedEnabled();
+  const { allForms, language, tenant } = store.useState((s) => s);
+  // Only offered when this workspace is entitled to embedding. The
+  // server answers that on tenant-info, and only to a signed-in caller,
+  // so an absent field reads as false. Dashboards of this kind that
+  // already exist are unaffected — this gates creating, not reading.
+  const canEmbed = Boolean(tenant?.embed_enabled);
   const watchedKind = Form.useWatch("kind", form);
   const kind = (canEmbed && watchedKind) || "widgets";
-  const { allForms, language } = store.useState((s) => s);
   const { active: activeLang } = language;
   const text = useMemo(() => uiText[activeLang], [activeLang]);
 

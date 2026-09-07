@@ -5,6 +5,7 @@ from django.test.utils import override_settings
 from api.v1.v1_forms.constants import FormStatus, FormTypes
 from api.v1.v1_forms.models import Forms, Questions
 from api.v1.v1_profile.tests.mixins import ProfileTestHelperMixin
+from api.v1.v1_users.models import Tenant
 from api.v1.v1_visualization.constants import (
     DashboardKind,
     EMBED_SNIPPET_MAX,
@@ -429,6 +430,9 @@ SNIPPET = (
 )
 
 
+@override_settings(
+    EMBED_HOST="http://embed.example.com", EMBED_TENANTS={"default"}
+)
 class EmbedValidationTestCase(TestCase, ProfileTestHelperMixin):
     """The embed arm of validate_dashboard_payload (spec D-3, D-4)."""
 
@@ -439,7 +443,14 @@ class EmbedValidationTestCase(TestCase, ProfileTestHelperMixin):
             email="viz_embed_validation@akvo.org",
             role_level=self.IS_SUPER_ADMIN,
         )
+        self.user.tenant = Tenant.objects.get()
+        self.user.save()
         self.root = Forms.objects.get(pk=6001)
+        # The user has a tenant now, so Forms.for_user() scopes to it:
+        # the seeded form has to sit on the same row or the widgets arm
+        # below cannot see its own root_form.
+        self.root.tenant = self.user.tenant
+        self.root.save()
 
     def check(self, data, dashboard=None):
         return validate_dashboard_payload(data, self.user, dashboard)
@@ -457,9 +468,9 @@ class EmbedValidationTestCase(TestCase, ProfileTestHelperMixin):
 
     def test_a_javascript_url_in_the_snippet_is_accepted(self):
         # Deliberately not refused. We never build an element from an
-        # author-supplied URL, and anything inside the snippet runs in
-        # the opaque origin of the srcdoc sandbox (D-4a/D-4b). The
-        # sandbox is the boundary, not a validator.
+        # author-supplied URL, and the snippet runs as its own document
+        # on the embed host (D-4a/D-4b). The separate origin is the
+        # boundary, not a validator.
         self.assertIsNone(
             self.check(
                 {

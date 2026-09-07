@@ -24,6 +24,7 @@ services:
       - SENTRY_DSN
       - BASE_DOMAIN
       - EMBED_HOST
+      - EMBED_TENANTS
     depends_on:
       - db
   worker:
@@ -48,6 +49,7 @@ services:
       # recipient's own workspace host.
       - BASE_DOMAIN
       - EMBED_HOST
+      - EMBED_TENANTS
     depends_on:
       - backend
   frontend:

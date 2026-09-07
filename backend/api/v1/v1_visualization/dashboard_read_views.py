@@ -198,8 +198,9 @@ class DashboardReadViewSet(viewsets.GenericViewSet):
         row = serialize_identity(dashboard)
         row["default_filters"] = snapshot["default_filters"]
         # A URL on the embed host, not the markup itself: viewers
-        # never run a snippet in this origin (VIZ-019 D-4a). None
-        # when EMBED_HOST is unconfigured, which the viewer reports.
+        # never run a snippet in this origin (VIZ-019 D-4a). None when
+        # EMBED_HOST is unconfigured or this workspace is not entitled
+        # to embedding (D-12) -- the viewer reports the same either way.
         row["embed_url"] = embed_url_for(dashboard)
         # Annotated as it is served, never baked in at publish time: a
         # question can be deleted at any point afterwards, and a stale

@@ -36,8 +36,9 @@ from api.v1.v1_visualization.constants import (
     DashboardKind,
     DashboardStatus,
 )
+from api.v1.v1_users.models import Tenant
 from api.v1.v1_visualization.models import Dashboard
-from utils.tenant_host import is_embed_host
+from utils.tenant_host import is_embed_host, tenant_may_embed
 
 SALT = "v1_visualization.embed"
 # An hour. The token is proof of an authorisation decision taken when it
@@ -63,22 +64,38 @@ def _absolute(token):
 
 
 def embed_url_for(dashboard):
-    """Absolute URL of a published dashboard's embed document, or None."""
+    """Absolute URL of a published dashboard's embed document, or None.
+
+    None for a workspace that is not entitled, exactly as for one on a
+    deployment with no embed host: the viewer shows the same notice
+    either way, and a reader is not told which of the two it is.
+    """
     if dashboard.kind != DashboardKind.embed:
+        return None
+    if not tenant_may_embed(dashboard.tenant):
         return None
     return _absolute(signing.dumps({"d": dashboard.id}, salt=SALT))
 
 
-def preview_url_for(snippet):
-    """Absolute URL for unsaved markup, or None when unconfigured.
+def preview_url_for(snippet, tenant):
+    """Absolute URL for unsaved markup, or None when it may not render.
 
     Preview has to show what the viewer will see (spec D-9) — it is the
     only warning an author gets that an embed is broken, since a
     cross-origin frame reports nothing back to us.
+
+    The tenant travels inside the signed token rather than beside the
+    snippet in the cache, because the token is what arrives at the embed
+    host: that host resolves no tenant of its own (it is nobody's
+    subdomain), so anything it needs to know about the workspace has to
+    be carried to it. Signed, so a caller cannot name a workspace other
+    than their own.
     """
+    if not tenant_may_embed(tenant):
+        return None
     key = "embed-preview:" + get_random_string(40)
     caches[PREVIEW_CACHE].set(key, snippet, PREVIEW_MAX_AGE)
-    return _absolute(signing.dumps({"p": key}, salt=SALT))
+    return _absolute(signing.dumps({"p": key, "t": tenant.id}, salt=SALT))
 
 
 def _on_embed_host(request):
@@ -92,9 +109,19 @@ def _on_embed_host(request):
 
 
 def _snippet_from(payload):
-    """The markup a valid token names, or None."""
+    """The markup a valid token names, or None.
+
+    Entitlement is re-checked here, and that is the point of gating at
+    serve time rather than only where the URL is minted. A token is
+    proof of a decision taken up to an hour ago; a workspace whose
+    embedding has been revoked since must stop rendering everywhere,
+    including in a tab that was opened while it still had it.
+    """
     key = payload.get("p")
     if key:
+        tenant = Tenant.objects.filter(pk=payload.get("t")).first()
+        if not tenant_may_embed(tenant):
+            return None
         return caches[PREVIEW_CACHE].get(key)
 
     dashboard = Dashboard.objects.filter(
@@ -103,8 +130,8 @@ def _snippet_from(payload):
         # Re-checked at serve time, not merely at mint time: unpublishing
         # should stop the frame loading rather than wait out the token.
         status=DashboardStatus.published,
-    ).first()
-    if dashboard is None:
+    ).select_related("tenant").first()
+    if dashboard is None or not tenant_may_embed(dashboard.tenant):
         return None
     # From the snapshot, never the live row (spec D-5): editing a
     # published embed must not change what viewers see until it is

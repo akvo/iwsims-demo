@@ -625,7 +625,11 @@ EMBED_SNIPPET = (
 )
 
 
-@override_settings(USE_TZ=False)
+@override_settings(
+    USE_TZ=False,
+    EMBED_HOST="http://embed.example.com",
+    EMBED_TENANTS={"default"},
+)
 class EmbedDashboardCrudTestCase(TestCase, ProfileTestHelperMixin):
     def setUp(self):
         call_command("administration_seeder", "--test")
@@ -634,6 +638,8 @@ class EmbedDashboardCrudTestCase(TestCase, ProfileTestHelperMixin):
             email="viz_embed_crud@akvo.org",
             role_level=self.IS_SUPER_ADMIN,
         )
+        self.user.tenant = Tenant.objects.get()
+        self.user.save()
         self.header = auth(self.user)
 
     def post(self, payload):

@@ -18,6 +18,7 @@ from api.v1.v1_forms.models import Forms, Questions
 from api.v1.v1_visualization.constants import (
     DashboardKind,
     EMBED_SNIPPET_MAX,
+    EMBED_UNAVAILABLE,
     SUPPORTED_QUESTION_TYPES,
     VALID_COLUMN_SOURCES,
     VALID_CRITERIA_TYPES,
@@ -28,6 +29,7 @@ from api.v1.v1_visualization.constants import (
     WidgetTypes,
 )
 from api.v1.v1_visualization.models import DashboardWidget
+from utils.tenant_host import tenant_may_embed
 
 # VIZ-001 §4.2. The server never interprets `measure` — VIZ-008 expands
 # it — but it does insist the word is one of the two that exist.
@@ -175,18 +177,27 @@ def _resolve_kind(data, dashboard):
     return KIND_IDS[raw], None
 
 
-def _validate_embed(data, dashboard):
+def _validate_embed(data, dashboard, tenant):
     """The embed arm. The snippet's *content* is never inspected.
 
     Spec D-4: we do not parse, rewrite, or shape-check the snippet, and
     there is deliberately no URL scheme check. We never construct an
-    element from an author-supplied URL, and everything inside the
-    snippet executes in the opaque origin of the srcdoc sandbox — the
-    sandbox is the boundary, not a validator.
+    element from an author-supplied URL, and the snippet is served as
+    its own document on the embed host — a separate origin is the
+    boundary, not a validator.
 
     The two bounds below are bounds on storage, not opinions about
     content.
     """
+    # The entitlement gate on the write path. Refusing here means a
+    # workspace that has not bought embedding cannot create one, and --
+    # because update runs this same arm -- cannot edit one it created
+    # while it still had the feature either. That leaves existing rows
+    # readable and deletable, which is the right shape for a revocation:
+    # nothing of the customer's is destroyed, it simply stops working.
+    if not tenant_may_embed(tenant):
+        return _error(EMBED_UNAVAILABLE, field="kind")
+
     snippet = data.get("embed_snippet")
     if snippet is None and dashboard is not None:
         # An update that renames but does not touch the snippet keeps
@@ -254,7 +265,9 @@ def validate_dashboard_payload(data, user, dashboard=None):
     if kind == DashboardKind.embed:
         # An embed has no root_form, no widget family and no filters, so
         # none of the rules below apply to it.
-        return _validate_embed(data, dashboard)
+        return _validate_embed(
+            data, dashboard, getattr(user, "tenant", None)
+        )
 
     if dashboard is None:
         root_form = forms.filter(pk=_as_int(data.get("root_form"))).first()
