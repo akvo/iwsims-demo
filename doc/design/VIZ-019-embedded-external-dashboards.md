@@ -1,7 +1,7 @@
 # Embedded external dashboards: design
 
 **Status:** in review — GitHub [#361], PR [#366] **open**, branch
-`feature/361-embedded-dashboards` (13 commits, 48 files). Not on `main`.
+`feature/361-embedded-dashboards` (13 commits). Not on `main`.
 
 ## Problem
 
@@ -65,6 +65,24 @@ visitor of a public page — and `AUTH_TOKEN` is a cookie without
   holding its slug.
 - **No filter bar on an embed.** There is no data of ours to filter, and
   a control that changes nothing is worse than no control.
+- **Embedding is a per-workspace entitlement, checked at render time.**
+  `EMBED_HOST` says the deployment *can* host third-party markup safely;
+  `EMBED_TENANTS`, a comma-separated whitelist of subdomains, says which
+  workspaces bought it. Both are required, and `tenant_may_embed()` is
+  the only place they combine. The check runs when the document is
+  served, not only when its URL is minted: an embed URL is a signed
+  hour-long token, so a mint-time-only gate would leave every issued
+  token working after a revocation — including for anonymous readers of
+  a public dashboard, who make no further authenticated request to gate.
+  Revocation is not deletion; the row, the snippet and the snapshot all
+  survive, and restoring the entitlement restores the render.
+- **The entitlement flag rides on `tenant-info`, for signed-in callers
+  only.** `config.js` is generated once at startup and served from disk
+  to every host alike, so it has no tenant in scope and cannot answer a
+  per-workspace question. Which commercial tier a customer is on is a
+  fact about the customer, and `tenant-info` is anonymous and answers a
+  guessable host — so the field is absent, not `false`, for a caller who
+  has not signed in.
 
 ## Components
 
@@ -83,11 +101,18 @@ satisfy `None in self.forms`.
 `DashboardViewer`. `DashboardVisibilityToggle` was extracted so both
 kinds share one control.
 
-## One deployment prerequisite
+## Two deployment prerequisites
 
 `EMBED_HOST` must be a real, separate host. Without it the feature has no
-isolation boundary and must stay off. Documented in `env.example` and the
-README on the branch.
+isolation boundary and must stay off.
+
+`EMBED_TENANTS` must name the workspaces entitled to the feature. Empty
+— the default — entitles nobody, so a deployment that has not sold
+embedding needs no configuration to keep it off. Single-tenant and
+legacy deployments are not exempt: after the tenant backfill their one
+workspace is `default`, so they need `EMBED_TENANTS=default`.
+
+Both are documented in `env.example` and the README on the branch.
 
 ## Note for reviewers
 

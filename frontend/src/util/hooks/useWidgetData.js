@@ -186,6 +186,27 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
     // it is optional, and a count-only KPI has none.
     return null;
   }
+
+  if (type === "line") {
+    const hasCategory = Boolean(config.category_question_id);
+    return {
+      endpoint: "visualization/values",
+      params: compact({
+        form_id: widget.form,
+        question_id: hasCategory
+          ? config.category_question_id
+          : widget.question,
+        ...expandMeasure(widget, rootFormId),
+        group_by: "month",
+        stack_by: hasCategory ? "option" : null,
+        administration_id: filters?.administration_id,
+        ...dateFilters(filters),
+        date_question_id: config.date_question_id,
+        dashboard_slug: dashboardSlug,
+      }),
+    };
+  }
+
   return {
     endpoint: "visualization/values",
     params: compact({
@@ -380,8 +401,12 @@ const normalize = (widget, response, statusResponse, seriesResponse) => {
   // stacks at all. Trusting the config there projected eight rows of real
   // counts down to bare labels and drew an empty chart. Read the shape,
   // not the intent.
+  //
+  // `category_question_id` is the line chart's own way of asking for the
+  // same shape (VIZ-013): it carries no `stack_by` of its own, because
+  // buildRequest derives `stack_by=option` from it rather than storing it.
   const stacked =
-    Boolean(config.stack_by) &&
+    Boolean(config.stack_by || config.category_question_id) &&
     ((isCrossForm(widget) ? seriesResponse : response)?.stack_labels || [])
       .length > 0;
 
