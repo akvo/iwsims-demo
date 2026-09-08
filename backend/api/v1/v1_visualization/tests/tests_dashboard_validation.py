@@ -34,6 +34,9 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
         self.q_option = Questions.objects.get(pk=600203)
         self.q_text = Questions.objects.get(pk=600205)
         self.q_reg_option = Questions.objects.get(pk=600102)
+        # multiple_option on the monitoring form: the type a cross-form
+        # chart refuses as its measured question.
+        self.q_multi = Questions.objects.get(pk=600204)
 
         # A second family, so "outside the family" has something to
         # point at that is still inside the tenant.
@@ -184,6 +187,119 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
                 "stack_by": "option",
             },
         )))
+
+    # ── §4.5: config.stack_form — cross-form stacking (VIZ-015.a) ──
+
+    def test_a_valid_cross_form_stack_is_accepted(self):
+        self.assertIsNone(self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.root.id,
+                "stack_question": self.q_reg_option.id,
+            },
+        )))
+
+    def test_cross_form_stack_form_must_exist(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": 999999,
+                "stack_question": self.q_reg_option.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_form")
+
+    def test_cross_form_stack_form_must_be_in_the_family(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.other_root.id,
+                "stack_question": self.q_reg_option.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_form")
+
+    def test_cross_form_requires_group_by_parent_id(self):
+        # The join keys on the registration datapoint, which is only a
+        # key under parent_id. Refused, never silently overridden.
+        for group_by in ("option", "month", "date"):
+            err = self.check(self.widget(
+                type="bar",
+                question=self.q_option.id,
+                config={
+                    "measure": "current_state",
+                    "group_by": group_by,
+                    "stack_by": "option",
+                    "stack_form": self.root.id,
+                    "stack_question": self.q_reg_option.id,
+                },
+            ))
+            self.assertIsNotNone(err, group_by)
+            self.assertEqual(err["field"], "config.stack_form")
+
+    def test_cross_form_stack_question_must_be_on_the_stack_form(self):
+        # 600203 is on the widget's own form, not on the stack form.
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.root.id,
+                "stack_question": self.q_option.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
+
+    def test_cross_form_requires_a_single_select_question(self):
+        # The join takes one category answer per site, so a multi-select
+        # would have everything after the first dropped without a word.
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_multi.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.root.id,
+                "stack_question": self.q_reg_option.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "question")
+
+    def test_stack_form_equal_to_the_widget_form_is_same_form(self):
+        # And is therefore judged by VIZ-015's rules, which want
+        # group_by=option rather than parent_id.
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.monitoring.id,
+                "stack_question": 600204,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
 
     # ── §4.5: root_form ──
 

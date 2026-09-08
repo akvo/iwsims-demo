@@ -13,7 +13,7 @@ import re
 
 from django.utils.text import slugify
 
-from api.v1.v1_forms.constants import FormTypes
+from api.v1.v1_forms.constants import FormTypes, QuestionTypes
 from api.v1.v1_forms.models import Forms, Questions
 from api.v1.v1_visualization.constants import (
     SUPPORTED_QUESTION_TYPES,
@@ -301,6 +301,7 @@ def _validate_widget(
             )
 
     question_id = widget.get("question")
+    question = None
     if question_id is not None:
         question = questions.filter(pk=_as_int(question_id)).first()
         if question is None:
@@ -361,7 +362,19 @@ def _validate_widget(
                 index,
                 "config.stack_question",
             )
-        if config.get("group_by") != "option":
+        # Which of the two stacking models this is. Same-form is a
+        # cross-tab of submissions under group_by=option; cross-form is a
+        # join of sites under group_by=parent_id (VIZ-015.a). They are
+        # mutually exclusive, so group_by alone tells a reader which a
+        # stored config uses, without comparing form ids.
+        stack_form_id = _as_int(config.get("stack_form"))
+        is_cross_form = (
+            stack_form_id is not None
+            and form is not None
+            and stack_form_id != form.id
+        )
+
+        if not is_cross_form and config.get("group_by") != "option":
             # Cross-tab only: any other grouping makes the widget's own
             # question contribute nothing, so the chart says something
             # the configuration does not.
@@ -370,16 +383,61 @@ def _validate_widget(
                 index,
                 "config.stack_question",
             )
+
+        stack_form = form
+        if is_cross_form:
+            stack_form = forms.filter(pk=stack_form_id).first()
+            if stack_form is None:
+                return _error(
+                    "stack form not found", index, "config.stack_form"
+                )
+            # The same family test widget.form already passes, so VIZ-001
+            # D-3 stays intact: a widget still cannot reach outside the
+            # registration form and its monitoring children.
+            if not (
+                stack_form.id == root_form.id
+                or stack_form.parent_id == root_form.id
+            ):
+                return _error(
+                    "stack form must be the dashboard's root form or one "
+                    "of its monitoring forms",
+                    index,
+                    "config.stack_form",
+                )
+            if config.get("group_by") != "parent_id":
+                # The join keys on the registration datapoint, which is
+                # only a key under parent_id. Refuse rather than override:
+                # a stored config must never describe a chart it does not
+                # draw.
+                return _error(
+                    "a cross-form stack requires group_by=parent_id",
+                    index,
+                    "config.stack_form",
+                )
+            if question is not None and (
+                question.type != QuestionTypes.option
+            ):
+                # The join takes one category answer per site, so a
+                # multi-select measured question would have every answer
+                # after the first dropped without a word.
+                return _error(
+                    "a cross-form stack requires a single-select question",
+                    index,
+                    "question",
+                )
+
         # Reuses the queryset the widget's own question was checked
         # against rather than issuing a second query.
         stack_question = questions.filter(
             pk=_as_int(stack_question_id),
         ).first()
-        if stack_question is None or form is None or (
-            stack_question.form_id != form.id
+        if stack_question is None or stack_form is None or (
+            stack_question.form_id != stack_form.id
         ):
             return _error(
-                "stack question must belong to the widget's form",
+                "stack question must belong to the stack form"
+                if is_cross_form
+                else "stack question must belong to the widget's form",
                 index,
                 "config.stack_question",
             )

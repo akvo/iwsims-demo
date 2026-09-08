@@ -87,6 +87,14 @@ def allowlist_from(dashboard):
         if stack_qid is not None:
             questions.add(stack_qid)
 
+        # A cross-form stack (VIZ-015.a) names a second FORM in config,
+        # which is new: until now `forms` held only the widgets' own
+        # `form` keys. Without this the second /values call is refused and
+        # a public dashboard will not serve its own widget.
+        stack_form_id = _as_id(widget_config.get("stack_form"))
+        if stack_form_id is not None:
+            forms.add(stack_form_id)
+
         # Both carry author-entered question ids under the same key:
         # criteria narrow a widget's datapoints, and table columns of
         # source `answer`, `parent_answer` or `latest_date` name one

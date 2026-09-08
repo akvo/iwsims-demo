@@ -27,6 +27,8 @@ import {
   pruneConfigForForm,
   stackByOptions,
   withValidStack,
+  stackValueOf,
+  stackChangeOf,
   tableColumnOptions,
   monitoringForms,
 } from "./builderConstants";
@@ -304,8 +306,23 @@ const BuilderInspector = ({
   const stackChoices = stackByOptions(
     allQuestions,
     widget.question,
-    wConfig.group_by || "option"
-  ).filter((s) => wType === "bar" || !s.value.startsWith("q:"));
+    wConfig.group_by || "option",
+    // The whole family, already in memory: /sources returns every form
+    // with its questions, so the cross-form picker costs no new request.
+    wType === "bar" ? forms : [],
+    widget.form
+  ).filter((s) => wType === "bar" || !String(s.value).startsWith("q:"));
+  // Cross-form joins per site, so the grouping is derived, not chosen.
+  const stackIsCrossForm = Boolean(wConfig.stack_form);
+  // Everything a cross-form stack needs is in place EXCEPT a single-choice
+  // measured question. Without saying so the entries simply are not there,
+  // which reads as the feature being missing rather than unavailable —
+  // the same invisible constraint D-5 was written about.
+  const crossFormWithheld =
+    wType === "bar" &&
+    (wConfig.group_by || "option") === "parent_id" &&
+    selectedQuestion?.type === "multiple_option" &&
+    forms.some((f) => f.id !== widget.form);
   const hasOptionQuestion =
     selectedQuestion?.type === "option" ||
     selectedQuestion?.type === "multiple_option";
@@ -519,7 +536,9 @@ const BuilderInspector = ({
                       stackByOptions(
                         allQuestions,
                         val,
-                        wConfig.group_by || "option"
+                        wConfig.group_by || "option",
+                        wType === "bar" ? forms : [],
+                        widget.form
                       )
                     ),
                   });
@@ -609,11 +628,22 @@ const BuilderInspector = ({
                   ...widget,
                   config: withValidStack(
                     { ...widget.config, group_by: val },
-                    stackByOptions(allQuestions, widget.question, val)
+                    stackByOptions(
+                      allQuestions,
+                      widget.question,
+                      val,
+                      wType === "bar" ? forms : [],
+                      widget.form
+                    )
                   ),
                 });
               }}
               style={{ width: "100%" }}
+              // A cross-form stack joins two responses on the registration
+              // datapoint, which only exists as a key under parent_id.
+              // Disabled rather than hidden: an author who cannot see why
+              // the grouping is fixed will assume the control is broken.
+              disabled={stackIsCrossForm}
             >
               {VALID_GROUP_BY.map((g) => (
                 <Select.Option key={g.value} value={g.value}>
@@ -621,6 +651,12 @@ const BuilderInspector = ({
                 </Select.Option>
               ))}
             </Select>
+            {stackIsCrossForm && (
+              <div className="builder-inspector-hint">
+                Fixed while stacking by another form: this chart counts
+                registration sites, one per bar.
+              </div>
+            )}
           </div>
         )}
 
@@ -629,39 +665,51 @@ const BuilderInspector = ({
           <div className="builder-inspector-field">
             <label className="builder-inspector-label">Stack by</label>
             <Select
-              value={
-                wConfig.stack_question
-                  ? `q:${wConfig.stack_question}`
-                  : wConfig.stack_by || ""
-              }
+              value={stackValueOf(wConfig)}
               onChange={(val) => {
-                // Both fields in ONE update. Two updateConfig calls would
+                // Every field in ONE update. Two updateConfig calls would
                 // each close over the same `widget`, so the second would
                 // write the first's field back to its stale value.
-                const qid = val.startsWith("q:") ? Number(val.slice(2)) : null;
                 onWidgetChange({
                   ...widget,
                   config: {
                     ...widget.config,
-                    stack_by: qid ? "option" : val || null,
-                    stack_question: qid,
+                    ...stackChangeOf(val, wConfig.group_by || "option"),
                   },
                 });
               }}
               style={{ width: "100%" }}
               disabled={stackChoices.length <= 1}
             >
-              {stackChoices.map((s) => (
-                <Select.Option key={s.value} value={s.value}>
-                  {s.label}
-                </Select.Option>
-              ))}
+              {stackChoices.map((s) =>
+                s.options ? (
+                  <Select.OptGroup key={s.label} label={s.label}>
+                    {s.options.map((o) => (
+                      <Select.Option key={o.value} value={o.value}>
+                        {o.label}
+                      </Select.Option>
+                    ))}
+                  </Select.OptGroup>
+                ) : (
+                  <Select.Option key={s.value} value={s.value}>
+                    {s.label}
+                  </Select.Option>
+                )
+              )}
             </Select>
             {stackChoices.length <= 1 && (
               <div className="builder-inspector-hint">
                 {widget.question
                   ? "This question and grouping cannot be stacked"
                   : "Pick a question first"}
+              </div>
+            )}
+            {crossFormWithheld && (
+              <div className="builder-inspector-hint">
+                To stack by another form&apos;s question, pick a single-choice
+                question above. Stacking across forms counts one answer per
+                site, so a multi-choice question would lose every answer after
+                the first.
               </div>
             )}
           </div>

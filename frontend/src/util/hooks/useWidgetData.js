@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useVisualizationRequest from "./useVisualizationRequest";
 import { expandMeasure, MONITORING_LATEST } from "../dashboardMeasure";
+import stackAcrossForms from "../dashboardCrossForm";
 
 // =========================================================
 // One widget → one request → data the VIZ-006 renderers accept
@@ -193,10 +194,15 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
       ...expandMeasure(widget, rootFormId),
       group_by: config.group_by,
       stack_by: config.stack_by,
-      // Null unless the author picked a stacking question, and compact()
-      // drops it, so an unstacked or self-stacked widget sends nothing
-      // new and its response is unchanged.
-      stack_question_id: config.stack_question,
+      // Same-form stacking only. A cross-form widget gets its stacks from
+      // the second request, and sending the id here would name a question
+      // on ANOTHER form — which the serializer rejects twice over: not on
+      // `form_id`, and stack_question_id requires group_by=option while a
+      // cross-form chart is pinned to parent_id.
+      //
+      // Null otherwise, and compact() drops it, so an unstacked or
+      // self-stacked widget sends nothing new.
+      stack_question_id: isCrossForm(widget) ? null : config.stack_question,
       value_type: config.value_type,
       repeat_agg: config.repeat_agg,
       option_value: config.option_value,
@@ -256,6 +262,52 @@ const buildStatusRequest = (widget, filters, dashboardSlug) => {
 };
 
 /**
+ * Is this widget stacked by a question on a DIFFERENT form?
+ *
+ * The one predicate that decides between the two stacking models, and the
+ * only thing that tells them apart in a stored config besides `group_by`.
+ */
+const isCrossForm = (widget) => {
+  const config = widget?.config || {};
+  return Boolean(
+    config.stack_form &&
+      config.stack_form !== widget?.form &&
+      config.stack_question
+  );
+};
+
+/**
+ * The cross-form series request, or null.
+ *
+ * Same grammar as the primary, pointed at the other form. `group_by` and
+ * `stack_by` are pinned rather than read from config: the join keys on
+ * `row.group`, which is the registration datapoint id only under
+ * `group_by=parent_id`, so no other pairing joins at all.
+ *
+ * Both sides carry the dashboard's filters. Without that the bars and the
+ * segments describe different populations, and the discrepancy reads as a
+ * data bug rather than a configuration one.
+ */
+const buildSeriesRequest = (widget, filters, dashboardSlug) => {
+  if (!isCrossForm(widget)) {
+    return null;
+  }
+  const config = widget.config;
+  return {
+    endpoint: "visualization/values",
+    params: compact({
+      form_id: config.stack_form,
+      question_id: config.stack_question,
+      group_by: "parent_id",
+      stack_by: "option",
+      administration_id: filters?.administration_id,
+      ...dateFilters(filters),
+      dashboard: dashboardSlug,
+    }),
+  };
+};
+
+/**
  * An option-colour array, or null if it cannot be used as a palette.
  *
  * `QuestionOptions.color` is nullable and nothing defaults it, so a
@@ -276,7 +328,7 @@ const usableColors = (colors) =>
 
 // ── Reshaping the answer ─────────────────────────────────────────────
 
-const normalize = (widget, response, statusResponse) => {
+const normalize = (widget, response, statusResponse, seriesResponse) => {
   const config = widget?.config || {};
   const type = widget?.type;
   // Each branch returns only the keys it sets; the caller defaults the rest.
@@ -318,6 +370,22 @@ const normalize = (widget, response, statusResponse) => {
   const rows = response.data || [];
 
   if (config.stack_by) {
+    // Cross-form: the bars come from `response` and the stacks from
+    // `seriesResponse`, joined on `row.group` — the registration datapoint
+    // id both carry. The join MUST run here, before the projection below,
+    // which drops `group` along with every other non-stack key. Reversed,
+    // it would see no matching ids and render an empty chart with no error
+    // anywhere.
+    //
+    // The legend then describes the SERIES question, not the measured one:
+    // the category response's labels are the bars.
+    const crossForm = isCrossForm(widget);
+    const legend = crossForm ? seriesResponse : response;
+    const stackLabels = legend?.stack_labels || [];
+    const stackRows = crossForm
+      ? stackAcrossForms({ category: response, series: seriesResponse })
+      : rows;
+
     // In stacked mode each row carries one numeric column per stack, keyed
     // dynamically — those columns ARE the data. But they are not the only
     // keys the server sends, and akvo-charts turns EVERY key but the first
@@ -328,16 +396,15 @@ const normalize = (widget, response, statusResponse) => {
     //
     // So project to `label` first (the category axis) followed by exactly
     // the stack columns, in `stack_labels` order.
-    const stackLabels = response.stack_labels || [];
     return {
-      data: rows.map((row) =>
+      data: stackRows.map((row) =>
         stackLabels.reduce(
           (projected, key) => ({ ...projected, [key]: row[key] ?? 0 }),
           { label: row.label }
         )
       ),
       extraConfig: { stackMapping: { stack: stackLabels } },
-      color: usableColors(response.colors),
+      color: usableColors(legend?.colors),
     };
   }
 
@@ -398,9 +465,13 @@ export const useWidgetData = (
     () => buildStatusRequest(widget, filters, dashboardSlug),
     [widget, filters, dashboardSlug]
   );
+  const seriesRequest = useMemo(
+    () => buildSeriesRequest(widget, filters, dashboardSlug),
+    [widget, filters, dashboardSlug]
+  );
 
-  // Both called unconditionally, with a null endpoint when the widget needs
-  // no request: hook order must not vary with widget type or state.
+  // All three called unconditionally, with a null endpoint when the widget
+  // needs no request: hook order must not vary with widget type or state.
   const primary = useVisualizationRequest(
     request?.endpoint || null,
     request?.params
@@ -409,6 +480,10 @@ export const useWidgetData = (
     statusRequest?.endpoint || null,
     statusRequest?.params
   );
+  const series = useVisualizationRequest(
+    seriesRequest?.endpoint || null,
+    seriesRequest?.params
+  );
 
   const {
     data = null,
@@ -416,8 +491,8 @@ export const useWidgetData = (
     color = null,
     pagination = null,
   } = useMemo(
-    () => normalize(widget, primary.data, status.data),
-    [widget, primary.data, status.data]
+    () => normalize(widget, primary.data, status.data, series.data),
+    [widget, primary.data, status.data, series.data]
   );
 
   // The two derived values land at different depths — stackMapping inside
@@ -449,8 +524,10 @@ export const useWidgetData = (
     pagination: pagination
       ? { ...pagination, current: page, pageSize, onChange }
       : null,
-    loading: primary.loading || status.loading,
-    error: primary.error || status.error,
+    // The series call counts toward both: a cross-form chart drawn from
+    // only half its data is a wrong chart, not a partial one.
+    loading: primary.loading || status.loading || series.loading,
+    error: primary.error || status.error || series.error,
     refetch: primary.refetch,
   };
 };

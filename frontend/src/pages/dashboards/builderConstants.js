@@ -188,7 +188,9 @@ export const STACK_QUESTION_TYPES = new Set(["option", "multiple_option"]);
 export const stackByOptions = (
   questions = [],
   widgetQuestionId = null,
-  groupBy = null
+  groupBy = null,
+  family = [],
+  widgetFormId = null
 ) => {
   const none = VALID_STACK_BY.filter((s) => s.value === "");
   const question = (questions || []).find((q) => q.id === widgetQuestionId);
@@ -204,6 +206,31 @@ export const stackByOptions = (
     return none;
   }
   const own = VALID_STACK_BY.filter((s) => s.value === "option");
+
+  // Cross-form joins per site, so it lives under `parent_id` — the only
+  // grouping where both responses key on the registration datapoint id.
+  // A multi-select measured question is excluded: the join takes a site's
+  // single category answer, and offering a question whose answer it would
+  // truncate is offering a chart that quietly drops data.
+  if (groupBy === "parent_id") {
+    if (question.type !== "option") {
+      return [...none, ...own];
+    }
+    const groups = (family || [])
+      .filter((f) => f.id !== widgetFormId)
+      .map((f) => ({
+        label: f.name,
+        options: (f.questions || [])
+          .filter((q) => STACK_QUESTION_TYPES.has(q.type))
+          .map((q) => ({
+            value: `f:${f.id}:${q.id}`,
+            label: q.label || q.name,
+          })),
+      }))
+      .filter((g) => g.options.length > 0);
+    return [...none, ...own, ...groups];
+  }
+
   if (groupBy !== "option") {
     return [...none, ...own];
   }
@@ -222,6 +249,58 @@ export const stackByOptions = (
 };
 
 /**
+ * The Select value a config represents.
+ *
+ * Three encodings for one control, because antd carries a scalar while
+ * the choice writes up to three config fields. Both prefixes are UI-only
+ * and never reach `config` or the API.
+ */
+export const stackValueOf = (config) => {
+  if (config?.stack_form && config?.stack_question) {
+    return `f:${config.stack_form}:${config.stack_question}`;
+  }
+  if (config?.stack_question) {
+    return `q:${config.stack_question}`;
+  }
+  return config?.stack_by || "";
+};
+
+/**
+ * The config fields a Select value writes.
+ *
+ * Returned as one object so the caller can apply them in a single state
+ * update: two `updateConfig` calls would each close over the same widget,
+ * and the second would put the first's field back.
+ */
+export const stackChangeOf = (value, currentGroupBy) => {
+  if (value.startsWith("f:")) {
+    const [formId, questionId] = value.slice(2).split(":");
+    return {
+      stack_by: "option",
+      stack_question: Number(questionId),
+      stack_form: Number(formId),
+      // Cross-form only draws per site. Pinned here rather than left to
+      // the Group by control so the config is never momentarily invalid.
+      group_by: "parent_id",
+    };
+  }
+  if (value.startsWith("q:")) {
+    return {
+      stack_by: "option",
+      stack_question: Number(value.slice(2)),
+      stack_form: null,
+      group_by: currentGroupBy,
+    };
+  }
+  return {
+    stack_by: value || null,
+    stack_question: null,
+    stack_form: null,
+    group_by: currentGroupBy,
+  };
+};
+
+/**
  * The same config with a stack choice the new shape cannot draw removed.
  *
  * Changing the question or the grouping can strand a stack selection —
@@ -231,13 +310,15 @@ export const stackByOptions = (
  * changes keeps the inspector from producing a config it cannot save.
  */
 export const withValidStack = (config, choices) => {
-  const current = config?.stack_question
-    ? `q:${config.stack_question}`
-    : config?.stack_by || "";
-  if (choices.some((c) => c.value === current)) {
+  const current = stackValueOf(config);
+  // Groups carry their entries in `options`; flat entries carry `value`.
+  const offered = choices.some((c) =>
+    c.options ? c.options.some((o) => o.value === current) : c.value === current
+  );
+  if (offered) {
     return config;
   }
-  return { ...config, stack_by: null, stack_question: null };
+  return { ...config, stack_by: null, stack_question: null, stack_form: null };
 };
 
 export const VALID_ORIENTATION = [
@@ -424,6 +505,9 @@ export const pruneConfigForForm = (config, questions = []) => {
   const next = { ...(config || {}) };
   if (next.stack_question && !allowed.has(next.stack_question)) {
     next.stack_question = null;
+    // The pair is meaningless apart: a stack form with no question asks
+    // for nothing, and the save validator refuses it.
+    next.stack_form = null;
   }
   if (Array.isArray(next.columns)) {
     next.columns = next.columns.filter(belongs);

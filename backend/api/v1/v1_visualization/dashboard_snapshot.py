@@ -70,7 +70,14 @@ def annotate_broken(widgets, tenant):
     def stack_question(widget):
         return (widget.get("config") or {}).get("stack_question")
 
-    live_forms = live(Forms, [w.get("form") for w in widgets])
+    def stack_form(widget):
+        return (widget.get("config") or {}).get("stack_form")
+
+    live_forms = live(
+        Forms,
+        [w.get("form") for w in widgets]
+        + [stack_form(w) for w in widgets],
+    )
     # Both question references in one query: the widget's own, and the
     # stacking question a bar may name in its config (VIZ-015). A stack
     # question deleted after publish would otherwise 400 the viewer
@@ -88,13 +95,16 @@ def annotate_broken(widgets, tenant):
         form_id = row.get("form")
         question_id = row.get("question")
         stack_question_id = stack_question(row)
-        # Form first: a widget on a deleted form must not blame the
-        # question that went down with it. The stacking question comes
-        # last for the same reason: it must not shadow either.
+        stack_form_id = stack_form(row)
+        # Widest cause first, all the way down: a widget on a deleted
+        # form must not blame the question that went down with it, and a
+        # deleted stack form must not blame its own question either.
         if form_id and form_id not in live_forms:
             reason = "form_deleted"
         elif question_id and question_id not in live_questions:
             reason = "question_deleted"
+        elif stack_form_id and stack_form_id not in live_forms:
+            reason = "stack_form_deleted"
         elif stack_question_id and (
             stack_question_id not in live_questions
         ):

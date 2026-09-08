@@ -672,3 +672,41 @@ class PendingParentExclusionTestCases(
         rows = {row["label"]: row for row in data["data"]}
         # Site Alpha over both its submissions: active twice.
         self.assertEqual(rows["Site Alpha"]["Active"], 2)
+
+
+@override_settings(USE_TZ=False, TEST_ENV=True)
+class ParentGroupContractTestCases(
+    VisualizationValuesTestMixin, APITestCase
+):
+    """The response contract a cross-form chart joins on (VIZ-015.a).
+
+    Nothing in the backend knows it is participating in a join, so a
+    later "the response carries a redundant `group`, drop it" would pass
+    every other backend test and silently empty that chart. These two
+    name the contract so the change fails here instead.
+    """
+
+    def get(self, query):
+        response = self.client.get(f"{self.BASE_URL}?{query}")
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def test_registration_rows_carry_their_own_id_as_group(self):
+        data = self.get(
+            f"form_id={self.registration.id}"
+            f"&question_id={self.Q_REG_OPTION_ID}"
+            "&group_by=parent_id&stack_by=option"
+        )
+        groups = {row["group"] for row in data["data"]}
+        self.assertTrue(groups.issubset({self.reg1.id, self.reg2.id}))
+
+    def test_monitoring_rows_carry_the_parents_id_as_group(self):
+        # The same integer as above, which is the entire reason the two
+        # responses can be joined at all.
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&group_by=parent_id&stack_by=option&monitoring=latest"
+        )
+        groups = {row["group"] for row in data["data"]}
+        self.assertEqual(groups, {self.reg1.id, self.reg2.id})

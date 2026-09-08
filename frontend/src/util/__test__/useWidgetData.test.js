@@ -989,3 +989,180 @@ describe("stack_question", () => {
     expect(probe.latest().renderWidget.color).toBe("#64A73B");
   });
 });
+
+// =========================================================
+// Cross-form stacking (VIZ-015.a)
+// =========================================================
+//
+// Bars from the widget's form, stacks from another, joined on `group`.
+// Two requests where every other chart makes one.
+
+describe("cross-form stacking", () => {
+  const crossWidget = (overrides = {}) =>
+    widget({
+      type: "bar",
+      config: {
+        measure: "current_state",
+        group_by: "parent_id",
+        stack_by: "option",
+        stack_question: 600204,
+        stack_form: 6001,
+        ...overrides,
+      },
+    });
+
+  const CATEGORY = {
+    data: [{ label: "Nadi", group: 7, Surface: 1, Borehole: 0 }],
+    stack_labels: ["Surface", "Borehole"],
+    colors: ["#111111", "#222222"],
+  };
+  const SERIES = {
+    data: [{ label: "Nadi", group: 7, WAF: 0, MRD: 1 }],
+    stack_labels: ["WAF", "MRD"],
+    colors: ["#1f77b4", "#ff7f0e"],
+  };
+
+  const bySeriesForm = (config) =>
+    String(config.params?.form_id) === "6001" ? SERIES : CATEGORY;
+
+  test("no stack_form means one request, as before", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: { measure: "current_state", group_by: "option" },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls).toHaveLength(1);
+  });
+
+  test("a stack_form equal to the widget's form is not cross-form", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(crossWidget({ stack_form: MONITORING }));
+    await settle(probe);
+    expect(axios.mock.calls).toHaveLength(1);
+  });
+
+  test("a stack_form without a stack_question asks for nothing extra", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(crossWidget({ stack_question: null }));
+    await settle(probe);
+    expect(axios.mock.calls).toHaveLength(1);
+  });
+
+  test("a cross-form widget issues exactly two values calls", async () => {
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    expect(axios.mock.calls).toHaveLength(2);
+  });
+
+  test("the primary call does not carry stack_question_id", async () => {
+    // It names a question on ANOTHER form, so sending it here is a 400
+    // twice over: not on form_id, and stack_question_id requires
+    // group_by=option while a cross-form chart is pinned to parent_id.
+    // Asserting only the call COUNT missed this entirely.
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    const primary = axios.mock.calls
+      .map((c) => c[0])
+      .find((c) => String(c.params.form_id) === String(MONITORING));
+    expect(primary.params).not.toHaveProperty("stack_question_id");
+  });
+
+  test("a same-form stack still carries stack_question_id", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "current_state",
+          group_by: "option",
+          stack_by: "option",
+          stack_question: 600204,
+        },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls[0][0].params.stack_question_id).toBe(600204);
+  });
+
+  test("the series call pins group_by and stack_by", async () => {
+    // Not the author's to choose: the join keys on the registration
+    // datapoint, which is only a key under parent_id.
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    const series = axios.mock.calls
+      .map((c) => c[0])
+      .find((c) => String(c.params.form_id) === "6001");
+    expect(series.params.group_by).toBe("parent_id");
+    expect(series.params.stack_by).toBe("option");
+    expect(series.params.question_id).toBe(600204);
+  });
+
+  test("the series call carries the dashboard filters", async () => {
+    // Otherwise the bars and the segments describe different populations,
+    // which reads as a data bug rather than a configuration one.
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget(), {
+      from_date: "2025-01-01",
+      to_date: "2025-06-30",
+      administration_id: 42,
+    });
+    await settle(probe);
+    const series = axios.mock.calls
+      .map((c) => c[0])
+      .find((c) => String(c.params.form_id) === "6001");
+    expect(series.params.from_date).toBe("2025-01-01");
+    expect(series.params.to_date).toBe("2025-06-30");
+    expect(series.params.administration_id).toBe(42);
+  });
+
+  test("the join runs before the projection", async () => {
+    // The projection drops `group`, the join key. Reversed, the join
+    // matches nothing and the chart renders empty with no error anywhere.
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    expect(probe.latest().data).toEqual([{ label: "Surface", WAF: 0, MRD: 1 }]);
+  });
+
+  test("the legend describes the series question, not the bars", async () => {
+    axios.mockImplementation((config) =>
+      Promise.resolve({ data: bySeriesForm(config) })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    expect(probe.latest().renderWidget.config.stackMapping).toEqual({
+      stack: ["WAF", "MRD"],
+    });
+    expect(probe.latest().renderWidget.color).toEqual(["#1f77b4", "#ff7f0e"]);
+  });
+
+  test("a partly-null series palette falls back to the widget colour", async () => {
+    axios.mockImplementation((config) =>
+      Promise.resolve({
+        data:
+          String(config.params?.form_id) === "6001"
+            ? { ...SERIES, colors: ["#1f77b4", null] }
+            : CATEGORY,
+      })
+    );
+    const probe = run(crossWidget());
+    await settle(probe);
+    expect(probe.latest().renderWidget.color).toBe("#64A73B");
+  });
+});

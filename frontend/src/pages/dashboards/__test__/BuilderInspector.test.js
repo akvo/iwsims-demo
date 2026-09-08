@@ -8,6 +8,8 @@ import {
   monitoringForms,
   stackByOptions,
   withValidStack,
+  stackValueOf,
+  stackChangeOf,
 } from "../builderConstants";
 
 // =========================================================
@@ -428,5 +430,135 @@ describe("pruneConfigForForm and the stack question", () => {
       [{ id: 600204 }]
     );
     expect(next.stack_question).toBe(600204);
+  });
+});
+
+// =========================================================
+// Stack by another FORM (VIZ-015.a)
+// =========================================================
+
+describe("cross-form stack choices", () => {
+  const FAMILY = [
+    {
+      id: 6001,
+      name: "Registration",
+      questions: [
+        { id: 600102, label: "Agencies", type: "multiple_option" },
+        { id: 600103, label: "Depth", type: "number" },
+      ],
+    },
+    {
+      id: 6002,
+      name: "Monitoring",
+      questions: [{ id: 600203, label: "Status", type: "option" }],
+    },
+  ];
+  const OWN = [{ id: 600203, label: "Status", type: "option" }];
+  const values = (choices) =>
+    choices.flatMap((c) =>
+      c.options ? c.options.map((o) => o.value) : c.value
+    );
+
+  test("another form's questions appear only under parent_id", () => {
+    // The join keys on the registration datapoint, which is only a key
+    // under that grouping.
+    expect(
+      values(stackByOptions(OWN, 600203, "option", FAMILY, 6002))
+    ).not.toContain("f:6001:600102");
+    expect(
+      values(stackByOptions(OWN, 600203, "parent_id", FAMILY, 6002))
+    ).toContain("f:6001:600102");
+  });
+
+  test("they are grouped by form name", () => {
+    const choices = stackByOptions(OWN, 600203, "parent_id", FAMILY, 6002);
+    const group = choices.find((c) => c.options);
+    expect(group.label).toBe("Registration");
+  });
+
+  test("the widget's own form is not offered as a group", () => {
+    const choices = stackByOptions(OWN, 600203, "parent_id", FAMILY, 6002);
+    expect(choices.filter((c) => c.options).map((c) => c.label)).toEqual([
+      "Registration",
+    ]);
+  });
+
+  test("non-option questions on other forms are excluded", () => {
+    const vals = values(stackByOptions(OWN, 600203, "parent_id", FAMILY, 6002));
+    expect(vals).not.toContain("f:6001:600103");
+  });
+
+  test("a multi-select measured question is not offered cross-form", () => {
+    // The join takes one category answer per site, so it would drop
+    // everything after the first without a word.
+    const multi = [{ id: 600203, label: "Features", type: "multiple_option" }];
+    const vals = values(
+      stackByOptions(multi, 600203, "parent_id", FAMILY, 6002)
+    );
+    expect(vals).not.toContain("f:6001:600102");
+  });
+});
+
+describe("stackValueOf and stackChangeOf", () => {
+  test("a cross-form config round-trips through the Select value", () => {
+    const config = { stack_by: "option", stack_question: 5, stack_form: 6001 };
+    expect(stackValueOf(config)).toBe("f:6001:5");
+  });
+
+  test("selecting a form entry writes all four fields at once", () => {
+    // One update: two updateConfig calls would each close over the same
+    // widget and the second would undo the first.
+    expect(stackChangeOf("f:6001:5", "option")).toEqual({
+      stack_by: "option",
+      stack_question: 5,
+      stack_form: 6001,
+      group_by: "parent_id",
+    });
+  });
+
+  test("a same-form entry clears stack_form and keeps the grouping", () => {
+    expect(stackChangeOf("q:5", "option")).toEqual({
+      stack_by: "option",
+      stack_question: 5,
+      stack_form: null,
+      group_by: "option",
+    });
+  });
+
+  test("None clears everything but the grouping", () => {
+    expect(stackChangeOf("", "month")).toEqual({
+      stack_by: null,
+      stack_question: null,
+      stack_form: null,
+      group_by: "month",
+    });
+  });
+
+  test("withValidStack keeps a cross-form choice the groups still offer", () => {
+    const config = { stack_by: "option", stack_question: 5, stack_form: 6001 };
+    const choices = [
+      { value: "", label: "None" },
+      { label: "Registration", options: [{ value: "f:6001:5", label: "X" }] },
+    ];
+    expect(withValidStack(config, choices)).toBe(config);
+  });
+
+  test("withValidStack clears a cross-form choice the groups dropped", () => {
+    const next = withValidStack(
+      { stack_by: "option", stack_question: 5, stack_form: 6001 },
+      [{ value: "", label: "None" }]
+    );
+    expect(next.stack_form).toBeNull();
+    expect(next.stack_question).toBeNull();
+    expect(next.stack_by).toBeNull();
+  });
+
+  test("changing the widget's form clears a cross-form stack", () => {
+    const next = pruneConfigForForm(
+      { stack_by: "option", stack_question: 600102, stack_form: 6001 },
+      [{ id: 600203 }]
+    );
+    expect(next.stack_question).toBeNull();
+    expect(next.stack_form).toBeNull();
   });
 });
