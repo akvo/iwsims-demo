@@ -435,13 +435,22 @@ const normalize = (widget, response, statusResponse, seriesResponse) => {
     // and on the parent path `group` is the datapoint's id, so a chart of
     // counts under 5 grew bars in the thousands.
     //
-    // So project to `label` first (the category axis) followed by exactly
-    // the stack columns, in `stack_labels` order.
+    // So project to the category first, followed by exactly the stack
+    // columns, in `stack_labels` order.
+    //
+    // The category key is not always `label`: the parent-stacked number
+    // paths key their rows `month` or `date` instead
+    // (`_stack_parent_by_month` / `_stack_parent_by_date`). That went
+    // unnoticed while this branch passed rows through whole, because
+    // akvo-charts reads whatever the FIRST key is — the projection is
+    // what made the name matter, and hardcoding `label` drew a chart of
+    // undefined categories for a number question stacked by site.
+    const categoryOf = (row) => row.label ?? row.month ?? row.date ?? null;
     return {
       data: stackRows.map((row) =>
         stackLabels.reduce(
           (projected, key) => ({ ...projected, [key]: row[key] ?? 0 }),
-          { label: row.label }
+          { label: categoryOf(row) }
         )
       ),
       extraConfig: { stackMapping: { stack: stackLabels } },

@@ -264,14 +264,33 @@ class ValuesFilterSerializer(serializers.Serializer):
                         " multiple_option question_id."
                     ),
                 })
-            if data.get("value_type") == "percentage":
-                # "60% of cost" needs a denominator, and the multi-select
-                # attribution below would compound that choice. Refused
-                # rather than answered wrongly (D-2).
+            if (
+                data.get("value_type") == "percentage"
+                and data.get("repeat_agg") != "sum"
+            ):
+                # A percentage needs a denominator that is a total of the
+                # same quantity. Under `sum` the bar's own total is one:
+                # "of the households this agency serves, 85% are under an
+                # approved plan". Under average/max/min/last there is no
+                # such total -- a sum of averages is not a quantity -- so
+                # the only honest denominators left are submission
+                # counts, which would divide money by rows (D-2).
+                raise serializers.ValidationError({
+                    "value_question_id": (
+                        "value_type=percentage requires repeat_agg=sum"
+                        " when a value_question_id is given."
+                    ),
+                })
+            if data.get("include_unanswered") or data.get("include_empty"):
+                # Both add a bucket of PARENTS -- "No information
+                # available" -- to a chart whose other bars are sums of a
+                # number question, and both make the percentage
+                # denominator a parent count. A row of sites cannot join
+                # a chart of households at any aggregation.
                 raise serializers.ValidationError({
                     "value_question_id": (
                         "value_question_id cannot be combined with"
-                        " value_type=percentage."
+                        " include_unanswered or include_empty."
                     ),
                 })
             value_question = Questions.objects.filter(

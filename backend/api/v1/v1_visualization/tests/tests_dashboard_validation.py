@@ -346,7 +346,7 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
         self.assertIsNotNone(err)
         self.assertEqual(err["field"], "config.value_question")
 
-    def test_value_question_is_refused_with_percentage(self):
+    def test_percentage_needs_sum_over_a_value_question(self):
         err = self.check(self.widget(
             type="bar",
             question=self.q_option.id,
@@ -355,6 +355,37 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
                 "group_by": "option",
                 "value_question": 600202,
                 "value_type": "percentage",
+                "repeat_agg": "average",
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.value_question")
+
+    def test_percentage_is_saved_over_a_summed_value(self):
+        """Two barriers, one rule: the same pairing /values accepts."""
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "value_question": 600202,
+                "value_type": "percentage",
+                "repeat_agg": "sum",
+            },
+        ))
+        self.assertIsNone(err)
+
+    def test_value_question_is_refused_with_include_unmonitored(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "value_question": 600202,
+                "repeat_agg": "sum",
+                "include_unmonitored": True,
             },
         ))
         self.assertIsNotNone(err)

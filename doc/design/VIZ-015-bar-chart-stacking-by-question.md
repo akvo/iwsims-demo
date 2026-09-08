@@ -2,8 +2,8 @@
 
 **Status:** implemented on
 `feature/349-viz-015-bar-chart-stacking-by-another-question` (GitHub
-[#349]). 517 backend tests and 373 frontend tests pass; flake8, eslint and
-prettier are clean.
+[#349]). 608 backend tests and 435 frontend tests across 49 suites pass;
+flake8, eslint and prettier are clean.
 
 This document supersedes the first draft of the same design, and has been
 brought back in line with the code after implementation. Where the plan and
@@ -41,7 +41,12 @@ Verbatim from the issue:
 - [x] Bar chart "Stack by" offers the option-type questions of the selected
       form, in addition to the current None / Option value / Registration
       site choices — narrowed by D-5 to the groupings that actually draw a
-      chart, and by D-4 to `Group by = Option value`
+      chart, and by D-4 to `Group by = Option value`.
+      **Since S-13 that control is named `Break down by` on bar charts and
+      the grouping is written by the choice rather than set beforehand.**
+      The criterion is met either way: the same questions are offered and
+      the same config is stored. `Stack by` survives under its own name on
+      line and pie
 - [x] Selecting another option question stacks each bar by that question's
       options
 - [x] The legend shows the option labels of the stacking question
@@ -696,6 +701,12 @@ Done when:
 
 ### S-11: Group by offers only what draws, and hides when that is one
 
+> **Superseded for bar charts by S-13.** This treated the symptom — a
+> control that had to hide itself half the time is a control that was never
+> separate — and S-13 removes the pair for bar. It is kept in full because
+> its truth table is what the merged list is built from, and because line
+> and pie still run this code.
+
 Not planned. Fixing the Stack by list (D-5) left the identical defect in
 the control directly above it, and a UI review asked why `Group by` existed
 at all for an option question.
@@ -734,6 +745,12 @@ Done when:
 - A number question never sees `This question's options`.
 - A saved widget whose grouping draws nothing still offers the repair.
 
+The truth table above survives the merge intact — it is exactly what
+`breakdownOptions` returns, read the other way round. Where this section
+asks "given the stack, which groupings draw", S-13 asks "given the
+question, which second dimensions draw", and the same six rows answer
+both.
+
 ### S-12: trust the response shape, not the config
 
 `normalize` branched on `config.stack_by`, which says what the author asked
@@ -755,6 +772,66 @@ What to do:
 Done when:
 - A response with rows but no `stack_labels` renders its `{label, value}`
   rows, asserted in `useWidgetData.test.js`.
+
+### S-13: one "Break down by" for bar, replacing Group by and Stack by
+
+S-11 hid Group by whenever the stack left it one value, which treated the
+symptom: the two controls were one idea split in half, and neither could
+be read without the other. Two things proved it. Cross-form questions
+appeared only *after* Group by was already `Registration site`, which is
+why `crossFormWithheld` had to exist to explain their absence. And "Stack
+by: Registration site" on a number question drew an empty chart — the bug
+that prompted this — because the pairing was legal but the projection
+below (S-10) assumed a category key those handlers do not use.
+
+Bar charts now have a single list of *the other dimension*: the axis when
+that is a time or a site, the segments when it is another question.
+
+| Choice | `group_by` | `stack_by` | ids |
+|---|---|---|---|
+| None — this question's options | `option` | — | — |
+| Month / Date | `month` / `date` | `option` | — |
+| Registration site | `parent_id` | `option` | — |
+| Another question | `option` | `option` | `stack_question` |
+| Another form's question | `parent_id` | `option` | `stack_form` + `stack_question` |
+
+A number question has no options of its own, so it drops the `None` row
+and never stacks; its three entries write `group_by` alone.
+
+**And it is offered no question entries at all**, which reads as a gap and
+is not one. `handle_number_question` routes on `group_by` and `stack_by`
+alone, and `stack_question_id` is refused unless the measured question is
+option-typed — there is nothing for a second question's options to
+cross-tab against. The chart an author is reaching for there ("average
+project cost by agency") is VIZ-015.b's, with the roles swapped: the
+option question becomes the **Question** and the number becomes the
+**Value**. That spelling also reaches combinations the numeric side cannot
+— cost over time split by agency is Question = agency, Break down by =
+Month, Value = cost.
+
+The control says so rather than leaving the author to infer it: with a
+number question selected, the hint names the swap instead of promising
+"the segments for another question" while offering none.
+
+**Bar only.** A line chart's request path fixes `group_by=month` and
+discards the control's value, and it has its own X axis and Category
+controls (VIZ-013); a pie has no stack to merge with. `groupByOptions`,
+`stackByOptions` and their validators stay for those two — this adds a
+control rather than replacing the pair everywhere.
+
+**Stored config is unchanged.** The merged control writes the same four
+fields, so no published dashboard needs migrating and the backend never
+learns the merge happened. A widget saved with a combination the list no
+longer offers still renders; `withValidBreakdown` only snaps it when the
+measured question changes underneath it.
+
+**The category key.** S-10 projects each row to `label` plus the stack
+columns. `_stack_parent_by_month` and `_stack_parent_by_date` key their
+rows `month`/`date` instead, which went unnoticed while the branch passed
+rows through whole — akvo-charts reads whatever the first key is. The
+projection is what made the name matter, and hardcoding `label` drew a
+chart of `undefined` categories. `normalize` now reads
+`label ?? month ?? date`.
 
 ## Worked example: the config and the payloads it produces
 
@@ -1328,3 +1405,17 @@ One consequence worth stating: the control **appears** when a stack is
 selected. That looks like churn and is accurate — an option question
 grouped by month genuinely requires a stack, so the control showing up when
 stacking does is the constraint made visible rather than explained.
+
+**And that consequence is what eventually overturned this for bar charts
+(S-13).** A control that appears and disappears as you configure the one
+next to it is not two controls the author is choosing between; it is one
+idea rendered as two. Option 1 above — "remove Group by for option
+questions entirely" — was rejected for losing "status over time" and
+"status per site". The merged list keeps both: they are `Month` and
+`Registration site` in it, and picking either writes the stack the old
+Group by needed you to set first.
+
+The hide/disable rule itself is unaffected and still governs the panel
+elsewhere. What changed is that bar's breakdown no longer has a case to
+apply it to — with one control there is never a choice that was taken
+away.

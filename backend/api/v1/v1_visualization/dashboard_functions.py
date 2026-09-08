@@ -558,10 +558,24 @@ def _validate_widget(
                 index,
                 "config.value_question",
             )
-        if config.get("value_type") == "percentage":
+        if (
+            config.get("value_type") == "percentage"
+            and config.get("repeat_agg") != "sum"
+        ):
+            return _error(
+                "value_type=percentage requires repeat_agg=sum when a"
+                " value_question is given",
+                index,
+                "config.value_question",
+            )
+        if config.get("include_unmonitored"):
+            # Reaches /values as include_unanswered, which adds a "No
+            # information available" bucket counting PARENTS to a chart
+            # whose bars are sums of a number question — and makes the
+            # percentage denominator a parent count.
             return _error(
                 "value_question cannot be combined with"
-                " value_type=percentage",
+                " include_unmonitored",
                 index,
                 "config.value_question",
             )

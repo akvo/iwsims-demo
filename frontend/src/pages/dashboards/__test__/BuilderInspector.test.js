@@ -14,6 +14,11 @@ import {
   withValidGroupBy,
   valueQuestionOptions,
   repeatAggOptions,
+  valueTypeOptions,
+  breakdownOptions,
+  breakdownValueOf,
+  breakdownChangeOf,
+  withValidBreakdown,
   VALID_STACK_BY,
 } from "../builderConstants";
 
@@ -736,6 +741,182 @@ describe("repeatAggOptions", () => {
     // Unstacked bars do not visually add up, so the chart never performs
     // the addition that makes the overlap misleading.
     expect(repeatAggOptions(true, false).map((a) => a.value)).toContain("sum");
+  });
+});
+
+describe("breakdownOptions", () => {
+  const OPTION_Q = { id: 600203, label: "Status", type: "option" };
+  const MULTI_Q = { id: 600207, label: "Agencies", type: "multiple_option" };
+  const NUMBER_Q = { id: 600202, label: "Cost", type: "number" };
+  const ALL = [OPTION_Q, MULTI_Q, NUMBER_Q];
+  const FAMILY = [
+    {
+      id: 6001,
+      name: "Registration",
+      questions: [{ id: 600101, label: "Type", type: "option" }],
+    },
+    { id: 6002, name: "Monitoring", questions: ALL },
+  ];
+  const values = (...args) =>
+    breakdownOptions(...args).map((c) => c.value ?? c.label);
+
+  test("nothing without a question", () => {
+    expect(breakdownOptions(null, ALL, FAMILY, 6002)).toEqual([]);
+  });
+
+  test("an option question offers None, the two times, the site and its siblings", () => {
+    expect(values(OPTION_Q, ALL, [], 6002)).toEqual([
+      "",
+      "month",
+      "date",
+      "parent_id",
+      "q:600207",
+    ]);
+  });
+
+  // The whole point of the merge: these used to appear only once Group
+  // by was already Registration site.
+  test("a sibling form's questions are in the same list", () => {
+    const groups = breakdownOptions(OPTION_Q, ALL, FAMILY, 6002).filter(
+      (c) => c.options
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe("Registration");
+    expect(groups[0].options[0].value).toBe("f:6001:600101");
+  });
+
+  test("a multi-choice question is offered no cross-form entries", () => {
+    // The join takes one answer per site, so it would drop data.
+    expect(
+      breakdownOptions(MULTI_Q, ALL, FAMILY, 6002).some((c) => c.options)
+    ).toBe(false);
+  });
+
+  test("a number question offers the times and the site, and no None", () => {
+    // No options of its own to fall back to, so an ungrouped number is
+    // one bar labelled Total — a KPI, not a bar chart.
+    expect(values(NUMBER_Q, ALL, FAMILY, 6002)).toEqual([
+      "month",
+      "date",
+      "parent_id",
+    ]);
+  });
+
+  test("the fixed choices carry an icon key and the questions a type", () => {
+    const byValue = Object.fromEntries(
+      breakdownOptions(OPTION_Q, ALL, [], 6002).map((c) => [c.value, c])
+    );
+    expect(byValue.month.icon).toBe("date");
+    expect(byValue.parent_id.icon).toBe("site");
+    expect(byValue["q:600207"].type).toBe("multiple_option");
+  });
+});
+
+describe("breakdownValueOf and breakdownChangeOf", () => {
+  test("an absent grouping reads as None", () => {
+    expect(breakdownValueOf({})).toBe("");
+    expect(breakdownValueOf({ group_by: "option" })).toBe("");
+  });
+
+  test("a time or site grouping reads as itself", () => {
+    expect(breakdownValueOf({ group_by: "month" })).toBe("month");
+    expect(breakdownValueOf({ group_by: "parent_id" })).toBe("parent_id");
+  });
+
+  test("a stack question round-trips", () => {
+    const next = breakdownChangeOf("q:600207", {
+      id: 1,
+      type: "option",
+    });
+    expect(next).toEqual({
+      group_by: "option",
+      stack_by: "option",
+      stack_question: 600207,
+      stack_form: null,
+    });
+    expect(breakdownValueOf(next)).toBe("q:600207");
+  });
+
+  test("a cross-form choice writes parent_id and both ids", () => {
+    const next = breakdownChangeOf("f:6001:600101", { id: 1, type: "option" });
+    expect(next).toEqual({
+      group_by: "parent_id",
+      stack_by: "option",
+      stack_question: 600101,
+      stack_form: 6001,
+    });
+    expect(breakdownValueOf(next)).toBe("f:6001:600101");
+  });
+
+  // Leaving either id behind sends a question under a grouping it does
+  // not belong to, which the endpoint refuses.
+  test("moving to a time clears both stack ids", () => {
+    const next = breakdownChangeOf("month", { id: 1, type: "option" });
+    expect(next.stack_question).toBeNull();
+    expect(next.stack_form).toBeNull();
+    expect(next.group_by).toBe("month");
+  });
+
+  test("an option question keeps its own options as the segments", () => {
+    expect(breakdownChangeOf("month", { id: 1, type: "option" }).stack_by).toBe(
+      "option"
+    );
+  });
+
+  test("a number question never stacks", () => {
+    expect(
+      breakdownChangeOf("parent_id", { id: 1, type: "number" }).stack_by
+    ).toBeNull();
+  });
+});
+
+describe("withValidBreakdown", () => {
+  const NUMBER_Q = { id: 600202, label: "Cost", type: "number" };
+
+  test("keeps a breakdown the new question still draws", () => {
+    const config = { group_by: "month", stack_by: null };
+    expect(
+      withValidBreakdown(config, breakdownOptions(NUMBER_Q, [], [], 6002))
+    ).toBe(config);
+  });
+
+  test("snaps None onto the first that draws when the question turns numeric", () => {
+    // group_by=option on a number question draws one "Total" bar.
+    const next = withValidBreakdown(
+      { group_by: "option", stack_by: "option" },
+      breakdownOptions(NUMBER_Q, [], [], 6002)
+    );
+    expect(next.group_by).toBe("month");
+    expect(next.stack_by).toBeNull();
+  });
+});
+
+describe("valueTypeOptions", () => {
+  const values = (config) => valueTypeOptions(config).map((v) => v.value);
+
+  test("counting bars keep both types", () => {
+    expect(values({})).toEqual(["number", "percentage"]);
+  });
+
+  test("a summed value keeps percentage", () => {
+    // The bar's own total is a denominator of the same quantity.
+    expect(values({ value_question: 42, repeat_agg: "sum" })).toContain(
+      "percentage"
+    );
+  });
+
+  test("every other aggregation drops it", () => {
+    // A sum of averages is not a quantity, so nothing is left to divide
+    // by but a submission count.
+    ["average", "max", "min", "last"].forEach((agg) => {
+      expect(values({ value_question: 42, repeat_agg: agg })).toEqual([
+        "number",
+      ]);
+    });
+  });
+
+  test("an absent aggregation reads as average, not sum", () => {
+    expect(values({ value_question: 42 })).toEqual(["number"]);
   });
 });
 

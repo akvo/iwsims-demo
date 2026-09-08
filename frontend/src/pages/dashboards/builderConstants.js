@@ -357,6 +357,26 @@ export const valueQuestionOptions = (questions = [], question = null) => {
 };
 
 /**
+ * The value types offered, given whether the bars carry a value question.
+ *
+ * Counting bars keep both. A value question keeps Percentage only under
+ * `sum`, because a percentage needs a denominator that is a total of the
+ * same quantity: summed bars have one — the bar's own total, so "of the
+ * households this agency serves, 85% are under an approved plan" — and
+ * average/max/min/last do not. A sum of averages is not a quantity, which
+ * leaves only submission counts as denominators, and dividing money by
+ * rows is the number D-2 refused to draw.
+ */
+export const valueTypeOptions = (config = {}) => {
+  if (!config.value_question) {
+    return VALID_VALUE_TYPE;
+  }
+  return config.repeat_agg === "sum"
+    ? VALID_VALUE_TYPE
+    : VALID_VALUE_TYPE.filter((v) => v.value !== "percentage");
+};
+
+/**
  * The aggregations offered for a given split.
  *
  * `sum` is withheld when the split is multi-choice. A submission
@@ -369,6 +389,164 @@ export const repeatAggOptions = (splitIsMulti = false, stacked = false) =>
   splitIsMulti && stacked
     ? VALID_REPEAT_AGG.filter((a) => a.value !== "sum")
     : VALID_REPEAT_AGG;
+
+/**
+ * The one "Break down by" list a bar chart needs (VIZ-015 S-13).
+ *
+ * Group by and Stack by were two controls over one idea, and neither
+ * could be read without the other: the cross-form questions only
+ * appeared once Group by was already `parent_id`, and Group by hid
+ * itself whenever the stack left it one value. Both are folded into a
+ * single list of *the other dimension* — the axis when that is time or
+ * site, the segments when it is another question.
+ *
+ * Bar only. A line chart's request path fixes `group_by=month` and has
+ * its own X axis and Category controls (VIZ-013), and a pie has no
+ * stack, so neither has two controls to merge.
+ *
+ * Entries carry `icon` for the fixed choices and `type` for questions,
+ * so the picker never has to map a value back to a glyph.
+ */
+export const breakdownOptions = (
+  question = null,
+  questions = [],
+  family = [],
+  widgetFormId = null
+) => {
+  if (!question) {
+    return [];
+  }
+
+  const time = [
+    { value: "month", label: "Month", icon: "date" },
+    { value: "date", label: "Date", icon: "date" },
+  ];
+  const site = { value: "parent_id", label: "Registration site", icon: "site" };
+
+  // A number question has no options of its own, so there is no "None":
+  // an ungrouped number is one bar labelled Total, which is a KPI.
+  if (question.type === "number") {
+    return [...time, site];
+  }
+  if (!STACK_QUESTION_TYPES.has(question.type)) {
+    return [];
+  }
+
+  const own = [
+    { value: "", label: "None — this question's options", icon: null },
+  ];
+  // The widget's own question is left out: it is already spelled
+  // "None", and crossing a question with itself is a diagonal the
+  // backend declines to draw.
+  const siblings = (questions || [])
+    .filter((q) => STACK_QUESTION_TYPES.has(q.type) && q.id !== question.id)
+    .map((q) => ({
+      value: `q:${q.id}`,
+      label: q.label || q.name,
+      type: q.type,
+    }));
+
+  // Cross-form entries used to be reachable only after setting Group by
+  // to Registration site, which is the discoverability problem this
+  // merge exists to remove. They now sit in the same list, and picking
+  // one writes `group_by=parent_id` itself.
+  //
+  // Withheld for a multi-select measured question: the join takes a
+  // site's single category answer, so offering it would offer a chart
+  // that quietly drops data.
+  const crossForm =
+    question.type === "option"
+      ? (family || [])
+          .filter((f) => f.id !== widgetFormId)
+          .map((f) => ({
+            label: f.name,
+            options: (f.questions || [])
+              .filter((q) => STACK_QUESTION_TYPES.has(q.type))
+              .map((q) => ({
+                value: `f:${f.id}:${q.id}`,
+                label: q.label || q.name,
+                type: q.type,
+              })),
+          }))
+          .filter((g) => g.options.length > 0)
+      : [];
+
+  return [...own, ...time, site, ...siblings, ...crossForm];
+};
+
+/** The merged Select's value for a stored config. */
+export const breakdownValueOf = (config = {}) => {
+  if (config.stack_form && config.stack_question) {
+    return `f:${config.stack_form}:${config.stack_question}`;
+  }
+  if (config.stack_question) {
+    return `q:${config.stack_question}`;
+  }
+  // `group_by` is the axis for every remaining entry; absent reads as
+  // "the question's own options", which is what `option` means.
+  const groupBy = config.group_by || "option";
+  return groupBy === "option" ? "" : groupBy;
+};
+
+/**
+ * The config fields one merged choice writes.
+ *
+ * All four in one object: `stack_question` and `stack_form` must be
+ * cleared as deliberately as they are set, or switching from a cross-tab
+ * to Month leaves a question id that the endpoint refuses under a
+ * grouping it does not belong to.
+ */
+export const breakdownChangeOf = (value, question = null) => {
+  const cleared = {
+    group_by: null,
+    stack_by: null,
+    stack_question: null,
+    stack_form: null,
+  };
+  const isOption = question && STACK_QUESTION_TYPES.has(question.type);
+  // An option question keeps `stack_by=option` on every axis: the bars
+  // are the axis and its own options are the segments. A number question
+  // has nothing to segment by, so it never stacks.
+  const ownStack = isOption ? "option" : null;
+
+  if (String(value).startsWith("f:")) {
+    const [, formId, questionId] = String(value).split(":");
+    return {
+      ...cleared,
+      group_by: "parent_id",
+      stack_by: "option",
+      stack_form: Number(formId),
+      stack_question: Number(questionId),
+    };
+  }
+  if (String(value).startsWith("q:")) {
+    return {
+      ...cleared,
+      group_by: "option",
+      stack_by: "option",
+      stack_question: Number(String(value).slice(2)),
+    };
+  }
+  if (!value) {
+    return { ...cleared, group_by: "option" };
+  }
+  return { ...cleared, group_by: value, stack_by: ownStack };
+};
+
+/** Snap a breakdown the new question cannot draw onto one it can. */
+export const withValidBreakdown = (config, choices) => {
+  const flatten = (list) =>
+    list.reduce(
+      (acc, entry) => acc.concat(entry.options ? entry.options : [entry]),
+      []
+    );
+  const values = flatten(choices).map((c) => c.value);
+  const current = breakdownValueOf(config);
+  if (values.includes(current)) {
+    return config;
+  }
+  return { ...config, ...breakdownChangeOf(values[0] ?? "", null) };
+};
 
 /**
  * The Select value a config represents.

@@ -220,14 +220,64 @@ class ValuesErrorTestCases(VisualizationValuesTestMixin, APITestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_value_question_is_refused_with_percentage(self):
-        """A percent of an aggregate needs a denominator nobody has
-        chosen yet, and multi-choice attribution compounds it (D-2)."""
+    def test_percentage_needs_sum_over_a_value_question(self):
+        """Every other aggregation leaves no total to divide by (D-2).
+
+        A sum of averages is not a quantity, so the only denominators
+        left are submission counts -- money over rows.
+        """
+        for agg in ["average", "max", "min", "last"]:
+            response = self.client.get(
+                f"{self.BASE_URL}?form_id={self.monitoring.id}"
+                f"&question_id={self.Q_OPTION_ID}"
+                f"&value_question_id={self.Q_NUMBER_ID}"
+                f"&repeat_agg={agg}"
+                "&group_by=option&value_type=percentage"
+            )
+            self.assertEqual(response.status_code, 400, agg)
+
+    def test_percentage_defaults_to_average_and_is_refused(self):
+        """`repeat_agg` absent means average, not sum."""
         response = self.client.get(
             f"{self.BASE_URL}?form_id={self.monitoring.id}"
             f"&question_id={self.Q_OPTION_ID}"
             f"&value_question_id={self.Q_NUMBER_ID}"
             "&group_by=option&value_type=percentage"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_percentage_is_allowed_over_a_summed_value(self):
+        """The bar's own total is a denominator of the same quantity.
+
+        "Of the households this agency serves, 85% are under an
+        approved plan" -- each bar's segments divide by that bar.
+        """
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum&group_by=option&value_type=percentage"
+        )
+        self.assertEqual(response.status_code, 200)
+        rows = response.json()["data"]
+        self.assertTrue(rows)
+        # Shares of one total, so they add up to 100 rather than to the
+        # households themselves.
+        self.assertAlmostEqual(
+            sum(row["value"] for row in rows), 100, places=0
+        )
+
+    def test_value_question_is_refused_with_include_unanswered(self):
+        """The bucket counts SITES; these bars are sums of households.
+
+        It also makes the percentage denominator a site count, so the
+        two cannot be reconciled at any aggregation.
+        """
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum&group_by=option&include_unanswered=true"
         )
         self.assertEqual(response.status_code, 400)
 

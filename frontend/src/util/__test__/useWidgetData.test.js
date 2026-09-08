@@ -660,6 +660,60 @@ describe("normalization", () => {
     expect(probe.latest().renderWidget.color).toEqual(["#64A73B", "#e41a1c"]);
   });
 
+  // The regression the projection introduced: `_stack_parent_by_month`
+  // and `_stack_parent_by_date` key their category `month`/`date`, not
+  // `label`, so a number question stacked by site drew a chart whose
+  // every bar was `undefined`.
+  test("a parent-stacked row keyed by date still finds its category", async () => {
+    axios.mockResolvedValue({
+      data: {
+        data: [
+          { date: "2026-07-10", "Site A": 12, "Site B": 5 },
+          { date: "2026-07-13", "Site A": 8, "Site B": 3 },
+        ],
+        labels: ["2026-07-10", "2026-07-13"],
+        stack_labels: ["Site A", "Site B"],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "current_state",
+          group_by: "date",
+          stack_by: "parent_id",
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().data).toEqual([
+      { label: "2026-07-10", "Site A": 12, "Site B": 5 },
+      { label: "2026-07-13", "Site A": 8, "Site B": 3 },
+    ]);
+  });
+
+  test("a parent-stacked row keyed by month does too", async () => {
+    axios.mockResolvedValue({
+      data: {
+        data: [{ month: "Jul 2026", "Site A": 12 }],
+        labels: ["Jul 2026"],
+        stack_labels: ["Site A"],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "current_state",
+          group_by: "month",
+          stack_by: "parent_id",
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().data).toEqual([{ label: "Jul 2026", "Site A": 12 }]);
+  });
+
   test("without group_by=option the widget colour is left alone", async () => {
     axios.mockResolvedValue({
       data: { data: [{ value: 5, label: "Jan" }], labels: ["Jan"] },
