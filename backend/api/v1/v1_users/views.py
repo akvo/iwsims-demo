@@ -70,7 +70,7 @@ from utils.custom_serializer_fields import validate_serializers_message
 from utils.default_serializers import DefaultResponseSerializer
 from utils.email_helper import send_email
 from utils.email_helper import ListEmailTypeRequestSerializer, EmailTypes
-from utils.tenant_host import tenant_web_url
+from utils.tenant_host import tenant_may_embed, tenant_web_url
 
 
 # A week is long enough to survive a weekend and a spam folder, short
@@ -310,7 +310,16 @@ def login(request, version):
     responses={
         200: inline_serializer(
             "TenantInfo",
-            fields={"subdomain": serializers.CharField()},
+            fields={
+                "subdomain": serializers.CharField(),
+                "embed_enabled": serializers.BooleanField(
+                    required=False,
+                    help_text=(
+                        "Present only for a signed-in caller. Whether "
+                        "this workspace may create embedded dashboards."
+                    ),
+                ),
+            },
         ),
         204: OpenApiResponse(description="Not a workspace address"),
     },
@@ -326,16 +335,31 @@ def tenant_info(request, version):
     from the middleware) — three cases the frontend has to tell apart
     before anyone has signed in.
 
-    Deliberately one field and no more: this is anonymous, and the host
-    it answers for is guessable, so anything added here is published to
-    whoever tries the subdomain. It used to also return the workspace's
-    name, taken from its root administration unit, to caption the login
-    page — dropped along with that caption, because an account belongs
-    to exactly one workspace and so nobody needed telling which one they
-    were signing in to. Whether the workspace has finished configuring
-    itself was never among the fields either: that belongs to the
-    signed-in user's own `configured` flag, and a visitor who has not
-    signed in cannot act on it.
+    One field for an anonymous caller and no more: this endpoint needs
+    no credentials, and the host it answers for is guessable, so
+    anything unconditional here is published to whoever tries the
+    subdomain. It used to also return the workspace's name, taken from
+    its root administration unit, to caption the login page — dropped
+    along with that caption, because an account belongs to exactly one
+    workspace and so nobody needed telling which one they were signing
+    in to. Whether the workspace has finished configuring itself was
+    never among the fields either: that belongs to the signed-in user's
+    own `configured` flag, and a visitor who has not signed in cannot
+    act on it.
+
+    `embed_enabled` is the one field that is not unconditional, and the
+    condition is the whole reason it lives here. It says which
+    commercial tier a workspace is on, which is a fact about the
+    customer rather than about the page, so it is answered only to
+    someone who has signed in to that workspace. An anonymous caller
+    gets the response shape it always got.
+
+    It rides on this endpoint rather than on `config.js` because that
+    file is generated once at startup and served from disk to every
+    host alike — it has no tenant in scope and so cannot carry a
+    per-workspace answer. This endpoint already resolves the tenant
+    from the host, and the frontend already refetches it after login,
+    which is exactly when the field appears.
     """
     tenant = getattr(request, "tenant", None)
     if not tenant:
@@ -343,10 +367,10 @@ def tenant_info(request, version):
         # caller learns there is no workspace here, which is the answer
         # that sends it to the signup page.
         return Response(status=status.HTTP_204_NO_CONTENT)
-    return Response(
-        {"subdomain": tenant.subdomain},
-        status=status.HTTP_200_OK,
-    )
+    body = {"subdomain": tenant.subdomain}
+    if request.user.is_authenticated:
+        body["embed_enabled"] = tenant_may_embed(tenant)
+    return Response(body, status=status.HTTP_200_OK)
 
 
 @extend_schema(

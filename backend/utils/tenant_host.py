@@ -34,6 +34,52 @@ def is_base_domain(host):
     return _normalize(host) in (base, f"www.{base}")
 
 
+def embed_hostname():
+    """Hostname of the origin that serves embedded content, or "".
+
+    `EMBED_HOST` is configured as a full origin because that is what the
+    frontend needs; everything host-shaped derives from here so the two
+    readings cannot drift. Empty means embedding is unconfigured, and
+    every caller treats that as "off" rather than "anything goes".
+    """
+    return (urlparse(settings.EMBED_HOST or "").hostname or "").lower()
+
+
+def is_embed_host(host):
+    """Does this host serve embedded content rather than the app?"""
+    configured = embed_hostname()
+    return bool(configured) and _normalize(host) == configured
+
+
+def tenant_may_embed(tenant):
+    """Is this workspace entitled to embedded dashboards?
+
+    The single place the entitlement is decided, and every gate in the
+    feature calls it -- minting a URL, serving the document, saving a
+    dashboard of that kind, and telling the frontend whether to offer
+    the option at all. Two conditions, both required:
+
+    `EMBED_HOST` is the deployment's capability. Without an origin of
+    its own there is nowhere safe to run a third-party snippet, so no
+    workspace can embed however it was sold.
+
+    `EMBED_TENANTS` is the commercial entitlement. Membership is by
+    subdomain, which is the tenant identifier that survives being
+    written down in an environment variable -- a primary key would not
+    survive a restore into a fresh database.
+
+    A tenant of None is not entitled. That is the honest answer for the
+    base domain and for a deployment with no tenant rows, and it also
+    means a single-host install must name its workspace in
+    `EMBED_TENANTS` like any other. Defaulting the tenant-less case to
+    "allowed" would have made the base domain the one place the
+    entitlement did not apply.
+    """
+    if not settings.EMBED_HOST or tenant is None:
+        return False
+    return (tenant.subdomain or "").lower() in settings.EMBED_TENANTS
+
+
 def resolve_tenant_from_host(host):
     """The tenant this host belongs to, or None if it belongs to none."""
     if is_base_domain(host):

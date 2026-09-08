@@ -170,3 +170,52 @@ class TenantInfoTestCase(TestCase, TenantTestHelperMixin):
         Tenant.objects.create(subdomain="fresh")
         response = self.client.get(TENANT_INFO, HTTP_HOST="fresh.app.com")
         self.assertEqual(response.json(), {"subdomain": "fresh"})
+
+    # ── the embedding entitlement (VIZ-019 D-12) ──
+    #
+    # This endpoint is the frontend's only source for it.
+
+    @override_settings(
+        EMBED_HOST="http://embed.app.com", EMBED_TENANTS={"acme"}
+    )
+    def test_a_signed_in_caller_is_told_the_workspace_may_embed(self):
+        response = self.client.get(
+            TENANT_INFO,
+            HTTP_HOST="acme.app.com",
+            **self.bearer(self.acme.admin),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.json()["embed_enabled"], True)
+
+    @override_settings(
+        EMBED_HOST="http://embed.app.com", EMBED_TENANTS={"globex"}
+    )
+    def test_a_workspace_off_the_whitelist_is_told_it_may_not(self):
+        response = self.client.get(
+            TENANT_INFO,
+            HTTP_HOST="acme.app.com",
+            **self.bearer(self.acme.admin),
+        )
+        self.assertIs(response.json()["embed_enabled"], False)
+
+    @override_settings(EMBED_HOST="", EMBED_TENANTS={"acme"})
+    def test_the_whitelist_alone_does_not_enable_embedding(self):
+        # Being sold the feature is not the same as the deployment
+        # having somewhere safe to render it. Both are required.
+        response = self.client.get(
+            TENANT_INFO,
+            HTTP_HOST="acme.app.com",
+            **self.bearer(self.acme.admin),
+        )
+        self.assertIs(response.json()["embed_enabled"], False)
+
+    @override_settings(
+        EMBED_HOST="http://embed.app.com", EMBED_TENANTS={"acme"}
+    )
+    def test_an_anonymous_caller_is_not_told_which_tier_this_is(self):
+        # The load-bearing half of putting the flag here. Which
+        # commercial tier a customer is on is a fact about the customer,
+        # and this endpoint answers a guessable host with no credentials
+        # — so the field must be absent, not merely false.
+        response = self.client.get(TENANT_INFO, HTTP_HOST="acme.app.com")
+        self.assertEqual(set(response.json().keys()), {"subdomain"})
