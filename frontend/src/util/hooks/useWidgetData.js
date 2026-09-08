@@ -185,6 +185,27 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
     // it is optional, and a count-only KPI has none.
     return null;
   }
+
+  if (type === "line") {
+    const hasCategory = Boolean(config.category_question_id);
+    return {
+      endpoint: "visualization/values",
+      params: compact({
+        form_id: widget.form,
+        question_id: hasCategory
+          ? config.category_question_id
+          : widget.question,
+        ...expandMeasure(widget, rootFormId),
+        group_by: "month",
+        stack_by: hasCategory ? "option" : null,
+        administration_id: filters?.administration_id,
+        ...dateFilters(filters),
+        date_question_id: config.date_question_id,
+        dashboard_slug: dashboardSlug,
+      }),
+    };
+  }
+
   return {
     endpoint: "visualization/values",
     params: compact({
@@ -294,11 +315,7 @@ const normalize = (widget, response, statusResponse) => {
   // bar, line, pie
   const rows = response.data || [];
 
-  if (config.stack_by) {
-    // In stacked mode each row carries one numeric column per stack, keyed
-    // dynamically — those columns ARE the data, so the rows must not be
-    // projected. `stack_labels` is the mapping the builder never writes,
-    // which is why stacked charts render empty on the branch today.
+  if (config.stack_by || config.category_question_id) {
     return {
       data: rows,
       extraConfig: { stackMapping: { stack: response.stack_labels || [] } },
