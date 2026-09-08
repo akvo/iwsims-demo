@@ -80,6 +80,13 @@ def allowlist_from(dashboard):
         if axis_qid is not None:
             questions.add(axis_qid)
 
+        # The stacking question (VIZ-015) lives in config too, and
+        # reaches the endpoint as `stack_question_id`. Without it a
+        # public dashboard would refuse to serve its own widget.
+        stack_qid = _as_id(widget_config.get("stack_question"))
+        if stack_qid is not None:
+            questions.add(stack_qid)
+
         # Both carry author-entered question ids under the same key:
         # criteria narrow a widget's datapoints, and table columns of
         # source `answer`, `parent_answer` or `latest_date` name one

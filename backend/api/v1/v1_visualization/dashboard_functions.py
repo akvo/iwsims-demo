@@ -22,6 +22,7 @@ from api.v1.v1_visualization.constants import (
     VALID_GROUP_BY,
     VALID_REPEAT_AGG,
     VALID_STACK_BY,
+    STACK_QUESTION_TYPES,
     VALID_VALUE_TYPE,
     WidgetTypes,
 )
@@ -343,6 +344,52 @@ def _validate_widget(
             index,
             "config.stack_by",
         )
+
+    # The stacking question (VIZ-015). Rejected here in the same terms
+    # the values endpoint uses, so a config that saves always renders.
+    stack_question_id = config.get("stack_question")
+    if stack_question_id is not None:
+        if not config.get("stack_by"):
+            return _error(
+                "stack_question requires stack_by",
+                index,
+                "config.stack_question",
+            )
+        if config.get("stack_by") != "option":
+            return _error(
+                "stack_question requires stack_by=option",
+                index,
+                "config.stack_question",
+            )
+        if config.get("group_by") != "option":
+            # Cross-tab only: any other grouping makes the widget's own
+            # question contribute nothing, so the chart says something
+            # the configuration does not.
+            return _error(
+                "stack_question requires group_by=option",
+                index,
+                "config.stack_question",
+            )
+        # Reuses the queryset the widget's own question was checked
+        # against rather than issuing a second query.
+        stack_question = questions.filter(
+            pk=_as_int(stack_question_id),
+        ).first()
+        if stack_question is None or form is None or (
+            stack_question.form_id != form.id
+        ):
+            return _error(
+                "stack question must belong to the widget's form",
+                index,
+                "config.stack_question",
+            )
+        if stack_question.type not in STACK_QUESTION_TYPES:
+            return _error(
+                "stack question must be an option or multiple_option"
+                " question",
+                index,
+                "config.stack_question",
+            )
 
     # Vocabularies the values endpoint already enforces at render time.
     # Checking them here turns a broken dashboard into a refused save.

@@ -86,6 +86,35 @@ class AllowlistTestCase(TestCase):
         self.assertEqual(allowed.forms, {6001, 6002})
         self.assertEqual(allowed.questions, {600201})
 
+    def test_a_stack_question_is_collected(self):
+        # A public dashboard would otherwise refuse to serve its own
+        # widget: the id reaches /values as stack_question_id, and
+        # check_ids rejects what the allowlist never collected.
+        allowed = self.build([
+            {
+                "form": 6002,
+                "question": 600203,
+                "config": {
+                    "stack_by": "option",
+                    "stack_question": 600204,
+                },
+            },
+        ])
+        self.assertEqual(allowed.questions, {600203, 600204})
+
+    def test_a_malformed_stack_question_narrows_rather_than_crashes(self):
+        allowed = self.build([
+            {
+                "form": 6002,
+                "question": 600203,
+                "config": {
+                    "stack_by": "option",
+                    "stack_question": "not-an-id",
+                },
+            },
+        ])
+        self.assertEqual(allowed.questions, {600203})
+
     def test_criteria_question_ids_are_collected(self):
         allowed = self.build([
             {"form": 6001, "question": None, "config": {

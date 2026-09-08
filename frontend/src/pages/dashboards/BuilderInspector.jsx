@@ -14,7 +14,6 @@ import {
   VALID_GROUP_BY,
   VALID_VALUE_TYPE,
   VALID_REPEAT_AGG,
-  VALID_STACK_BY,
   VALID_ORIENTATION,
   VALID_PIE_VARIANT,
   VALID_MEASURE,
@@ -26,6 +25,8 @@ import {
   NEEDS_SCATTER_Y,
   defaultMeasure,
   pruneConfigForForm,
+  stackByOptions,
+  withValidStack,
   tableColumnOptions,
   monitoringForms,
 } from "./builderConstants";
@@ -292,6 +293,19 @@ const BuilderInspector = ({
       ? allQuestions.filter((q) => q.type === "number")
       : allQuestions;
   const selectedQuestion = allQuestions.find((q) => q.id === widget.question);
+  // Only bar offers the question entries. Nothing technical stops a line
+  // chart on an option question from stacking the same way — /values
+  // never sees the widget type — but the acceptance criteria name bar,
+  // so widening this is a separate decision, not an accident.
+  //
+  // The grouping is passed for every type all the same: a line chart on a
+  // number question stacks by site over month or date, and withholding
+  // the grouping would hide that working combination too.
+  const stackChoices = stackByOptions(
+    allQuestions,
+    widget.question,
+    wConfig.group_by || "option"
+  ).filter((s) => wType === "bar" || !s.value.startsWith("q:"));
   const hasOptionQuestion =
     selectedQuestion?.type === "option" ||
     selectedQuestion?.type === "multiple_option";
@@ -491,7 +505,24 @@ const BuilderInspector = ({
                     },
                   });
                 } else {
-                  updateWidget("question", val);
+                  // Which stacks are drawable depends on the question's
+                  // type, so changing it can strand the current choice —
+                  // clearing a number question's leftover option stack,
+                  // or a stack question that just became the measured
+                  // one. A stranded value is a guaranteed 400, not a
+                  // cosmetic slip.
+                  onWidgetChange({
+                    ...widget,
+                    question: val || null,
+                    config: withValidStack(
+                      widget.config,
+                      stackByOptions(
+                        allQuestions,
+                        val,
+                        wConfig.group_by || "option"
+                      )
+                    ),
+                  });
                 }
               }}
               placeholder={
@@ -569,7 +600,19 @@ const BuilderInspector = ({
             <label className="builder-inspector-label">Group by</label>
             <Select
               value={wConfig.group_by || "option"}
-              onChange={(val) => updateConfig("group_by", val)}
+              onChange={(val) => {
+                // Regrouping can strand the stack choice too: another
+                // question's options are only drawable under
+                // group_by=option, and a number question stacks by site
+                // only over month or date.
+                onWidgetChange({
+                  ...widget,
+                  config: withValidStack(
+                    { ...widget.config, group_by: val },
+                    stackByOptions(allQuestions, widget.question, val)
+                  ),
+                });
+              }}
               style={{ width: "100%" }}
             >
               {VALID_GROUP_BY.map((g) => (
@@ -586,16 +629,41 @@ const BuilderInspector = ({
           <div className="builder-inspector-field">
             <label className="builder-inspector-label">Stack by</label>
             <Select
-              value={wConfig.stack_by || ""}
-              onChange={(val) => updateConfig("stack_by", val || null)}
+              value={
+                wConfig.stack_question
+                  ? `q:${wConfig.stack_question}`
+                  : wConfig.stack_by || ""
+              }
+              onChange={(val) => {
+                // Both fields in ONE update. Two updateConfig calls would
+                // each close over the same `widget`, so the second would
+                // write the first's field back to its stale value.
+                const qid = val.startsWith("q:") ? Number(val.slice(2)) : null;
+                onWidgetChange({
+                  ...widget,
+                  config: {
+                    ...widget.config,
+                    stack_by: qid ? "option" : val || null,
+                    stack_question: qid,
+                  },
+                });
+              }}
               style={{ width: "100%" }}
+              disabled={stackChoices.length <= 1}
             >
-              {VALID_STACK_BY.map((s) => (
+              {stackChoices.map((s) => (
                 <Select.Option key={s.value} value={s.value}>
                   {s.label}
                 </Select.Option>
               ))}
             </Select>
+            {stackChoices.length <= 1 && (
+              <div className="builder-inspector-hint">
+                {widget.question
+                  ? "This question and grouping cannot be stacked"
+                  : "Pick a question first"}
+              </div>
+            )}
           </div>
         )}
 

@@ -5,6 +5,7 @@ from api.v1.v1_visualization.constants import (
     VALID_VALUE_TYPE,
     VALID_REPEAT_AGG,
     VALID_STACK_BY,
+    STACK_QUESTION_TYPES,
     VALID_CRITERIA_TYPES,
     VALID_VALUES_CRITERIA_TYPES,
     VALID_COLUMN_SOURCES,
@@ -34,6 +35,10 @@ class ValuesFilterSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+    # The question whose options become the stacks. Absent means "the
+    # widget's own question", which is what stack_by=option has always
+    # meant, so every stored dashboard keeps its current behaviour.
+    stack_question_id = serializers.IntegerField(required=False)
     sum_by = serializers.ChoiceField(
         choices=["id", "parent_id"],
         required=False,
@@ -182,6 +187,66 @@ class ValuesFilterSerializer(serializers.Serializer):
                 raise serializers.ValidationError({
                     "stack_by": "stack_by requires question_id.",
                 })
+
+        stack_question_id = data.get("stack_question_id")
+        if stack_question_id and stack_question_id == question_id:
+            # The self-stack that plain stack_by=option already means.
+            # Normalised away first, and unconditionally: naming your own
+            # question is not the cross-tab, so none of the cross-tab's
+            # rules below should judge it.
+            data.pop("stack_question_id", None)
+            stack_question_id = None
+        if stack_question_id:
+            if stack_by != "option":
+                # stack_by=parent_id stacks by site, not by options.
+                # Ignoring the field would ship a chart that is not
+                # what the config says.
+                raise serializers.ValidationError({
+                    "stack_question_id": (
+                        "stack_question_id requires stack_by=option."
+                    ),
+                })
+            if group_by != "option":
+                # The cross-tab is the only shape where BOTH questions
+                # are read. Grouping by month or by site makes the
+                # measured question contribute nothing, so the chart is
+                # entirely about the stacking question -- which is the
+                # same chart as measuring that question directly, and
+                # leaves the Question control looking broken.
+                raise serializers.ValidationError({
+                    "stack_question_id": (
+                        "stack_question_id requires group_by=option."
+                    ),
+                })
+            if data.get("option_value"):
+                # handle_option_question returns from its option_value
+                # branches before it reaches the stack_by test, so the
+                # pair would silently drop the stacking.
+                raise serializers.ValidationError({
+                    "stack_question_id": (
+                        "option_value cannot be combined with"
+                        " stack_question_id."
+                    ),
+                })
+            stack_question = Questions.objects.filter(
+                pk=stack_question_id,
+                form_id=form_id,
+            ).first()
+            if not stack_question:
+                raise serializers.ValidationError({
+                    "stack_question_id": (
+                        f"Question {stack_question_id} not found"
+                        f" on form {form_id}."
+                    ),
+                })
+            if stack_question.type not in STACK_QUESTION_TYPES:
+                raise serializers.ValidationError({
+                    "stack_question_id": (
+                        "stack question must be an option or"
+                        " multiple_option question."
+                    ),
+                })
+            data["stack_question"] = stack_question
 
         return data
 

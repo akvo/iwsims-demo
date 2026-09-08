@@ -61,27 +61,44 @@ def annotate_broken(widgets, tenant):
     the caller's snapshot is never mutated, because it is a row from
     the database that nobody meant to write back.
     """
-    def live(model, key):
-        ids = {w.get(key) for w in widgets if w.get(key)}
-        query = model.objects.filter(id__in=ids)
+    def live(model, ids):
+        query = model.objects.filter(id__in={i for i in ids if i})
         if tenant is not None:
             query = query.filter(**{model.TENANT_PATH: tenant})
         return set(query.values_list("id", flat=True))
 
-    live_forms = live(Forms, "form")
-    live_questions = live(Questions, "question")
+    def stack_question(widget):
+        return (widget.get("config") or {}).get("stack_question")
+
+    live_forms = live(Forms, [w.get("form") for w in widgets])
+    # Both question references in one query: the widget's own, and the
+    # stacking question a bar may name in its config (VIZ-015). A stack
+    # question deleted after publish would otherwise 400 the viewer
+    # with no explanation — the exact failure this function exists to
+    # turn into a visible broken widget.
+    live_questions = live(
+        Questions,
+        [w.get("question") for w in widgets]
+        + [stack_question(w) for w in widgets],
+    )
 
     annotated = []
     for widget in widgets:
         row = dict(widget)
         form_id = row.get("form")
         question_id = row.get("question")
+        stack_question_id = stack_question(row)
         # Form first: a widget on a deleted form must not blame the
-        # question that went down with it.
+        # question that went down with it. The stacking question comes
+        # last for the same reason: it must not shadow either.
         if form_id and form_id not in live_forms:
             reason = "form_deleted"
         elif question_id and question_id not in live_questions:
             reason = "question_deleted"
+        elif stack_question_id and (
+            stack_question_id not in live_questions
+        ):
+            reason = "stack_question_deleted"
         else:
             reason = None
         row["is_broken"] = reason is not None

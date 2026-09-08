@@ -674,12 +674,12 @@ describe("normalization", () => {
     expect(probe.latest().renderWidget.color).toBe("#64A73B");
   });
 
-  test("stack_by derives stackMapping and passes rows through unprojected", async () => {
+  test("stack_by keeps the stack columns and drops everything else", async () => {
     axios.mockResolvedValue({
       data: {
         data: [
-          { label: "Nadi", Operational: 12, Issue: 3 },
-          { label: "Ba", Operational: 8, Issue: 1 },
+          { label: "Nadi", group: 7200, Operational: 12, Issue: 3 },
+          { label: "Ba", group: 7201, Operational: 8, Issue: 1 },
         ],
         labels: ["Nadi", "Ba"],
         stack_labels: ["Operational", "Issue"],
@@ -697,15 +697,39 @@ describe("normalization", () => {
     );
     await settle(probe);
 
-    // The builder never writes stackMapping, so stacked charts render with
-    // an empty mapping today. The per-stack columns ARE the data here, so
-    // the rows must not be projected down to {label, value}.
     expect(probe.latest().renderWidget.config.stackMapping).toEqual({
       stack: ["Operational", "Issue"],
     });
+    // `group` must not survive: akvo-charts makes a series of every key
+    // but the first, so leaving it in plotted the datapoint id as a bar
+    // — 7200 tall, next to stacks of 12 and 3.
     expect(probe.latest().data).toEqual([
       { label: "Nadi", Operational: 12, Issue: 3 },
       { label: "Ba", Operational: 8, Issue: 1 },
+    ]);
+  });
+
+  test("a stack column missing from a row becomes zero, not a hole", async () => {
+    axios.mockResolvedValue({
+      data: {
+        data: [{ label: "Nadi", group: 7200, Operational: 12 }],
+        labels: ["Nadi"],
+        stack_labels: ["Operational", "Issue"],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "current_state",
+          group_by: "parent_id",
+          stack_by: "option",
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().data).toEqual([
+      { label: "Nadi", Operational: 12, Issue: 0 },
     ]);
   });
 
@@ -845,5 +869,123 @@ describe("table pagination", () => {
     const probe = run(widget({ type: "bar" }));
     await settle(probe);
     expect(probe.latest().pagination).toBeNull();
+  });
+});
+
+// =========================================================
+// Stacking by another question (VIZ-015)
+// =========================================================
+
+describe("stack_question", () => {
+  test("reaches the request only when the author picked one", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          stack_by: "option",
+          stack_question: 600204,
+        },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls[0][0].params.stack_question_id).toBe(600204);
+  });
+
+  test("an unstacked widget sends nothing new", async () => {
+    // compact() drops the null, so the request — and therefore the
+    // response — is byte-identical to what it was before this feature.
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: { measure: "all_submissions", group_by: "option" },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls[0][0].params).not.toHaveProperty(
+      "stack_question_id"
+    );
+  });
+
+  test("stack colours reach renderWidget when every option has one", async () => {
+    axios.mockResolvedValue({
+      data: {
+        data: [{ label: "Active", "Feature X": 1, "Feature Y": 2 }],
+        labels: ["Active"],
+        stack_labels: ["Feature X", "Feature Y"],
+        colors: ["#1f77b4", "#ff7f0e"],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          stack_by: "option",
+          stack_question: 600204,
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().renderWidget.color).toEqual(["#1f77b4", "#ff7f0e"]);
+    expect(probe.latest().renderWidget.config.stackMapping).toEqual({
+      stack: ["Feature X", "Feature Y"],
+    });
+  });
+
+  test("a partly-coloured question falls back to the widget colour", async () => {
+    // QuestionOptions.color is nullable and nothing defaults it, so this
+    // is the normal shape on an author-built form. Passing the array on
+    // would colour one series and leave the rest to whatever the chart
+    // library does with a null — possibly a colour already in use.
+    axios.mockResolvedValue({
+      data: {
+        data: [{ label: "Active", "Feature X": 1, "Feature Y": 2 }],
+        labels: ["Active"],
+        stack_labels: ["Feature X", "Feature Y"],
+        colors: ["#1f77b4", null],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          stack_by: "option",
+          stack_question: 600204,
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().renderWidget.color).toBe("#64A73B");
+  });
+
+  test("no colours at all falls back too", async () => {
+    axios.mockResolvedValue({
+      data: {
+        data: [{ label: "Active", "Feature X": 1 }],
+        labels: ["Active"],
+        stack_labels: ["Feature X"],
+        colors: [],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          stack_by: "option",
+          stack_question: 600204,
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().renderWidget.color).toBe("#64A73B");
   });
 });

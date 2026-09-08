@@ -6,6 +6,8 @@ import {
   pruneConfigForForm,
   tableColumnOptions,
   monitoringForms,
+  stackByOptions,
+  withValidStack,
 } from "../builderConstants";
 
 // =========================================================
@@ -299,5 +301,132 @@ describe("visibility switch", () => {
     expect(onVisibilityChange).toHaveBeenCalledWith(true);
     // The switch is not dirty state: it must never reach the Save payload.
     expect(onDashboardChange).not.toHaveBeenCalled();
+  });
+});
+
+// =========================================================
+// Stack by another question (VIZ-015)
+// =========================================================
+//
+// One antd Select writes two config fields. The interesting parts are
+// which questions it offers, and that it writes both fields in a single
+// update — two `updateConfig` calls would each close over the same
+// `widget`, so the second would put the first's field back.
+
+describe("stackByOptions", () => {
+  const QUESTIONS = [
+    { id: 1, label: "Status", type: "option" },
+    { id: 2, label: "Features", type: "multiple_option" },
+    { id: 3, label: "Depth", type: "number" },
+    { id: 4, label: "Inspected", type: "date" },
+  ];
+  const values = (...args) => stackByOptions(...args).map((c) => c.value);
+
+  test("nothing can be stacked before a question is picked", () => {
+    // stack_by is refused by the values endpoint AND the save
+    // validator without a question, so offering it is offering a 400.
+    expect(stackByOptions(QUESTIONS, null, "option")).toEqual([
+      { value: "", label: "None" },
+    ]);
+  });
+
+  test("an option question stacks by its own options under any grouping", () => {
+    expect(values(QUESTIONS, 1, "month")).toEqual(["", "option"]);
+    expect(values(QUESTIONS, 1, "parent_id")).toEqual(["", "option"]);
+    expect(values(QUESTIONS, 1, "date")).toEqual(["", "option"]);
+  });
+
+  test("another question's options need group_by=option", () => {
+    // Grouped by anything else the measured question contributes
+    // nothing, and the chart is already spelled by measuring the other
+    // question directly.
+    expect(values(QUESTIONS, 1, "month")).not.toContain("q:2");
+    expect(values(QUESTIONS, 1, "option")).toContain("q:2");
+  });
+
+  test("registration site is never offered for an option question", () => {
+    // handle_option_question ignores stack_by=parent_id entirely and
+    // falls through to the unstacked breakdown.
+    expect(values(QUESTIONS, 1, "option")).not.toContain("parent_id");
+    expect(values(QUESTIONS, 2, "month")).not.toContain("parent_id");
+  });
+
+  test("a number question stacks by site, and only over time", () => {
+    // handle_stack_by_parent supports date and month; anything else
+    // returns an empty chart.
+    expect(values(QUESTIONS, 3, "month")).toEqual(["", "parent_id"]);
+    expect(values(QUESTIONS, 3, "date")).toEqual(["", "parent_id"]);
+    expect(values(QUESTIONS, 3, "parent_id")).toEqual([""]);
+    expect(values(QUESTIONS, 3, "option")).toEqual([""]);
+  });
+
+  test("a date question cannot be stacked at all", () => {
+    expect(values(QUESTIONS, 4, "option")).toEqual([""]);
+  });
+
+  test("number and date questions are never offered as stacks", () => {
+    const labels = stackByOptions(QUESTIONS, 1, "option").map((c) => c.label);
+    expect(labels).not.toContain("Depth");
+    expect(labels).not.toContain("Inspected");
+  });
+
+  test("the widget's own question is left out", () => {
+    // Stacking by it is already spelled "Option value", and a question
+    // cross-tabbed against itself is a diagonal.
+    expect(values(QUESTIONS, 1, "option")).not.toContain("q:1");
+    expect(values(QUESTIONS, 1, "option")).toContain("q:2");
+  });
+
+  test("survives a form with no questions", () => {
+    // Called bare, which also pins the defaults: a widget that has not
+    // been given a form yet reaches this before /sources answers.
+    expect(stackByOptions()).toEqual([{ value: "", label: "None" }]);
+  });
+});
+
+describe("withValidStack", () => {
+  const CHOICES = [
+    { value: "", label: "None" },
+    { value: "option", label: "Option value" },
+    { value: "q:2", label: "Features" },
+  ];
+
+  test("keeps a choice the new shape still offers", () => {
+    const config = { stack_by: "option", stack_question: 2 };
+    expect(withValidStack(config, CHOICES)).toBe(config);
+  });
+
+  test("clears one it no longer offers", () => {
+    // Regrouping away from group_by=option strands `q:2`, and a
+    // stranded value is a guaranteed 400 rather than a cosmetic slip.
+    const next = withValidStack(
+      { stack_by: "option", stack_question: 2 },
+      CHOICES.filter((c) => c.value !== "q:2")
+    );
+    expect(next.stack_by).toBeNull();
+    expect(next.stack_question).toBeNull();
+  });
+
+  test("clears a stack the question type cannot draw", () => {
+    const next = withValidStack({ stack_by: "parent_id" }, CHOICES);
+    expect(next.stack_by).toBeNull();
+  });
+});
+
+describe("pruneConfigForForm and the stack question", () => {
+  test("drops a stack question the new form does not have", () => {
+    const next = pruneConfigForForm(
+      { stack_by: "option", stack_question: 600204 },
+      [{ id: 600101 }]
+    );
+    expect(next.stack_question).toBeNull();
+  });
+
+  test("keeps one the new form does have", () => {
+    const next = pruneConfigForForm(
+      { stack_by: "option", stack_question: 600204 },
+      [{ id: 600204 }]
+    );
+    expect(next.stack_question).toBe(600204);
   });
 });

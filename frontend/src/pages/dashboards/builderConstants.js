@@ -149,6 +149,97 @@ export const VALID_STACK_BY = [
   { value: "parent_id", label: "Registration site" },
 ];
 
+/**
+ * Question types that can supply the stacks of a stacked chart.
+ *
+ * A stack needs a bounded set of series, which only an option set
+ * provides. A number or date question would produce one series per
+ * distinct answer, which is not a stacked bar; the backend refuses them
+ * too, so the picker and the serializer agree.
+ */
+export const STACK_QUESTION_TYPES = new Set(["option", "multiple_option"]);
+
+/**
+ * The "Stack by" choices that actually compute, given the rest of the
+ * widget.
+ *
+ * Every entry this returns produces a chart. That is a lower bar than it
+ * sounds: the control used to offer all four combinations unconditionally
+ * and most of them returned an empty chart, because the compute layer
+ * routes on the QUESTION's type, not the widget's:
+ *
+ *   - No question at all — `stack_by` is refused by both the values
+ *     endpoint and the save validator, so nothing can be offered.
+ *   - An option question stacks by its own options (`option`), over any
+ *     grouping. `parent_id` is silently ignored on this path.
+ *   - A number question stacks by site (`parent_id`), and only when
+ *     grouped by month or date. `option` is ignored on this path.
+ *   - Another question's options require `group_by=option`: that
+ *     cross-tab is the only shape reading both questions. Grouped by
+ *     month or site the measured question contributes nothing, and the
+ *     same chart is already spelled by measuring the other question
+ *     directly.
+ *
+ * The `q:` prefix exists only because antd's Select carries a scalar
+ * value and this control writes two config fields. It is unwrapped on
+ * change and never stored in `config` nor sent to the API — what gets
+ * stored is `{stack_by: "option", stack_question: <id>}`.
+ */
+export const stackByOptions = (
+  questions = [],
+  widgetQuestionId = null,
+  groupBy = null
+) => {
+  const none = VALID_STACK_BY.filter((s) => s.value === "");
+  const question = (questions || []).find((q) => q.id === widgetQuestionId);
+  if (!question) {
+    return none;
+  }
+  if (question.type === "number") {
+    return groupBy === "month" || groupBy === "date"
+      ? [...none, ...VALID_STACK_BY.filter((s) => s.value === "parent_id")]
+      : none;
+  }
+  if (!STACK_QUESTION_TYPES.has(question.type)) {
+    return none;
+  }
+  const own = VALID_STACK_BY.filter((s) => s.value === "option");
+  if (groupBy !== "option") {
+    return [...none, ...own];
+  }
+  return [
+    ...none,
+    ...own,
+    // The widget's own question is left out: stacking by it is already
+    // spelled "Option value", and cross-tabbing a question against
+    // itself is a diagonal — one non-zero segment per bar.
+    ...(questions || [])
+      .filter(
+        (q) => STACK_QUESTION_TYPES.has(q.type) && q.id !== widgetQuestionId
+      )
+      .map((q) => ({ value: `q:${q.id}`, label: q.label || q.name })),
+  ];
+};
+
+/**
+ * The same config with a stack choice the new shape cannot draw removed.
+ *
+ * Changing the question or the grouping can strand a stack selection —
+ * picking a number question after stacking by options, say — and the
+ * stranded value is not merely cosmetic: the values endpoint 400s on it
+ * and the save validator refuses the widget. Clearing it as the shape
+ * changes keeps the inspector from producing a config it cannot save.
+ */
+export const withValidStack = (config, choices) => {
+  const current = config?.stack_question
+    ? `q:${config.stack_question}`
+    : config?.stack_by || "";
+  if (choices.some((c) => c.value === current)) {
+    return config;
+  }
+  return { ...config, stack_by: null, stack_question: null };
+};
+
 export const VALID_ORIENTATION = [
   { value: "vertical", label: "Vertical" },
   { value: "horizontal", label: "Horizontal" },
@@ -322,11 +413,18 @@ export const tableColumnOptions = (forms = [], widgetFormId = null) => {
  *
  * Entries with no question (parent_name, administration) are
  * form-independent and are kept.
+ *
+ * `stack_question` is a bare id rather than an entry in a list, so it
+ * needs its own line here — a bar stacked by a question of the old form
+ * would otherwise survive the switch and be rejected on save.
  */
 export const pruneConfigForForm = (config, questions = []) => {
   const allowed = new Set((questions || []).map((q) => q.id));
   const belongs = (entry) => !entry?.question || allowed.has(entry.question);
   const next = { ...(config || {}) };
+  if (next.stack_question && !allowed.has(next.stack_question)) {
+    next.stack_question = null;
+  }
   if (Array.isArray(next.columns)) {
     next.columns = next.columns.filter(belongs);
   }

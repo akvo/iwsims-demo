@@ -193,6 +193,10 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
       ...expandMeasure(widget, rootFormId),
       group_by: config.group_by,
       stack_by: config.stack_by,
+      // Null unless the author picked a stacking question, and compact()
+      // drops it, so an unstacked or self-stacked widget sends nothing
+      // new and its response is unchanged.
+      stack_question_id: config.stack_question,
       value_type: config.value_type,
       repeat_agg: config.repeat_agg,
       option_value: config.option_value,
@@ -251,6 +255,25 @@ const buildStatusRequest = (widget, filters, dashboardSlug) => {
   };
 };
 
+/**
+ * An option-colour array, or null if it cannot be used as a palette.
+ *
+ * `QuestionOptions.color` is nullable and nothing defaults it, so a
+ * question authored in the form builder or imported from XLSForm usually
+ * has no colours at all — and may have only some. All-or-nothing is
+ * deliberate: akvo-charts reads the array as a palette, so a partial one
+ * keeps the authored colours and lets the gaps fall to whatever the
+ * library does with a null, which can repeat a colour already used in the
+ * same chart. Returning null instead gives every series a distinct
+ * automatic colour, which is the failure a reader can interpret.
+ */
+const usableColors = (colors) =>
+  Array.isArray(colors) &&
+  colors.length > 0 &&
+  colors.every((c) => typeof c === "string" && c.length > 0)
+    ? colors
+    : null;
+
 // ── Reshaping the answer ─────────────────────────────────────────────
 
 const normalize = (widget, response, statusResponse) => {
@@ -296,12 +319,25 @@ const normalize = (widget, response, statusResponse) => {
 
   if (config.stack_by) {
     // In stacked mode each row carries one numeric column per stack, keyed
-    // dynamically — those columns ARE the data, so the rows must not be
-    // projected. `stack_labels` is the mapping the builder never writes,
-    // which is why stacked charts render empty on the branch today.
+    // dynamically — those columns ARE the data. But they are not the only
+    // keys the server sends, and akvo-charts turns EVERY key but the first
+    // into a series (`dimensions.slice(1)` in its StackBar). Passing the
+    // row through whole therefore plotted `group` as a bar of its own —
+    // and on the parent path `group` is the datapoint's id, so a chart of
+    // counts under 5 grew bars in the thousands.
+    //
+    // So project to `label` first (the category axis) followed by exactly
+    // the stack columns, in `stack_labels` order.
+    const stackLabels = response.stack_labels || [];
     return {
-      data: rows,
-      extraConfig: { stackMapping: { stack: response.stack_labels || [] } },
+      data: rows.map((row) =>
+        stackLabels.reduce(
+          (projected, key) => ({ ...projected, [key]: row[key] ?? 0 }),
+          { label: row.label }
+        )
+      ),
+      extraConfig: { stackMapping: { stack: stackLabels } },
+      color: usableColors(response.colors),
     };
   }
 
@@ -322,8 +358,8 @@ const normalize = (widget, response, statusResponse) => {
   return {
     data: rows.map((row) => ({ label: row.label, value: row.value })),
     color:
-      config.group_by === "option" && rows.some((row) => row.color)
-        ? rows.map((row) => row.color)
+      config.group_by === "option"
+        ? usableColors(rows.map((row) => row.color))
         : null,
   };
 };

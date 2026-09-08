@@ -91,6 +91,100 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
     def test_a_valid_widget_returns_none(self):
         self.assertIsNone(self.check(self.widget()))
 
+    # ── §4.5: config.stack_question (VIZ-015) ──
+
+    def test_a_valid_stack_question_is_accepted(self):
+        self.assertIsNone(self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "option",
+                "stack_question": 600204,
+            },
+        )))
+
+    def test_stack_question_requires_stack_by(self):
+        err = self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_question": 600204,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
+
+    def test_stack_question_requires_stack_by_option(self):
+        err = self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "parent_id",
+                "stack_question": 600204,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
+
+    def test_stack_question_requires_group_by_option(self):
+        # Any other grouping and the measured question contributes
+        # nothing, so the saved config describes a chart it does not
+        # draw.
+        for group_by in ("month", "date", "parent_id"):
+            err = self.check(self.widget(
+                type="bar",
+                config={
+                    "measure": "current_state",
+                    "group_by": group_by,
+                    "stack_by": "option",
+                    "stack_question": 600204,
+                },
+            ))
+            self.assertIsNotNone(err, group_by)
+            self.assertEqual(err["field"], "config.stack_question")
+
+    def test_stack_question_must_belong_to_the_widgets_form(self):
+        # 600102 is on the registration form; the widget is on 6002.
+        err = self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "option",
+                "stack_question": self.q_reg_option.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
+
+    def test_stack_question_must_be_an_option_question(self):
+        err = self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "option",
+                "stack_question": self.q_text.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.stack_question")
+
+    def test_stack_by_without_a_stack_question_still_saves(self):
+        # The self-stack, which is what stack_by=option has always
+        # meant. Every stored dashboard is this case.
+        self.assertIsNone(self.check(self.widget(
+            type="bar",
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "option",
+            },
+        )))
+
     # ── §4.5: root_form ──
 
     def test_root_form_must_be_a_registration_form(self):
