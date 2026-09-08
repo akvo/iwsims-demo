@@ -339,6 +339,36 @@ export const withValidGroupBy = (config, choices) => {
 };
 
 /**
+ * The number questions a bar can be measured by (VIZ-015.b).
+ *
+ * Offered only when the measured question is option-typed: the value
+ * supplies the bar's HEIGHT and the measured question supplies the bars,
+ * so with a number question there would be nothing to give a height to.
+ */
+export const valueQuestionOptions = (questions = [], question = null) => {
+  if (!question || !STACK_QUESTION_TYPES.has(question.type)) {
+    return [];
+  }
+  return (questions || [])
+    .filter((q) => q.type === "number")
+    .map((q) => ({ value: q.id, label: q.label || q.name, type: q.type }));
+};
+
+/**
+ * The aggregations offered for a given split.
+ *
+ * `sum` is withheld when the split is multi-choice. A submission
+ * selecting three options contributes its full value to each, which is
+ * right for an average — "average cost among projects involving X" — and
+ * wrong for a sum, because the bar would then total three times the money
+ * that exists and a stacked bar reads as a partition of a whole (D-1).
+ */
+export const repeatAggOptions = (splitIsMulti = false, stacked = false) =>
+  splitIsMulti && stacked
+    ? VALID_REPEAT_AGG.filter((a) => a.value !== "sum")
+    : VALID_REPEAT_AGG;
+
+/**
  * The Select value a config represents.
  *
  * Three encodings for one control, because antd carries a scalar while
@@ -593,6 +623,9 @@ export const pruneConfigForForm = (config, questions = []) => {
   const allowed = new Set((questions || []).map((q) => q.id));
   const belongs = (entry) => !entry?.question || allowed.has(entry.question);
   const next = { ...(config || {}) };
+  if (next.value_question && !allowed.has(next.value_question)) {
+    next.value_question = null;
+  }
   if (next.stack_question && !allowed.has(next.stack_question)) {
     next.stack_question = null;
     // The pair is meaningless apart: a stack form with no question asks

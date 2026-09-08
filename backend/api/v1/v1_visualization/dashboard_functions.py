@@ -349,6 +349,10 @@ def _validate_widget(
     # The stacking question (VIZ-015). Rejected here in the same terms
     # the values endpoint uses, so a config that saves always renders.
     stack_question_id = config.get("stack_question")
+    # Bound unconditionally: the value-question rules below read it, and
+    # a name bound only inside a branch is how the first draft of this
+    # block shipped a NameError.
+    stack_question = None
     if stack_question_id is not None:
         if not config.get("stack_by"):
             return _error(
@@ -447,6 +451,68 @@ def _validate_widget(
                 " question",
                 index,
                 "config.stack_question",
+            )
+
+    # The value question (VIZ-015.b): the bar's height comes from a
+    # number question instead of a row count. Refused in the same terms
+    # the values endpoint uses, so a config that saves always renders.
+    value_question_id = config.get("value_question")
+    if value_question_id is not None:
+        if question is None or question.type not in STACK_QUESTION_TYPES:
+            return _error(
+                "value_question requires an option or multiple_option"
+                " question",
+                index,
+                "config.value_question",
+            )
+        if config.get("value_type") == "percentage":
+            return _error(
+                "value_question cannot be combined with"
+                " value_type=percentage",
+                index,
+                "config.value_question",
+            )
+        if config.get("stack_form"):
+            # The cross-form join adds one per site in the browser;
+            # summing would need the value per site in the response and
+            # a rule for which submission a site contributes.
+            return _error(
+                "value_question cannot be combined with a cross-form"
+                " stack",
+                index,
+                "config.value_question",
+            )
+        value_question = questions.filter(
+            pk=_as_int(value_question_id),
+        ).first()
+        if value_question is None or form is None or (
+            value_question.form_id != form.id
+        ):
+            return _error(
+                "value question must belong to the widget's form",
+                index,
+                "config.value_question",
+            )
+        if value_question.type != QuestionTypes.number:
+            return _error(
+                "value question must be a number question",
+                index,
+                "config.value_question",
+            )
+        # The split is the stack question when there is one, and the
+        # measured question when the stack is its own options.
+        split = stack_question or question
+        stack_multi = split.type == QuestionTypes.multiple_option
+        if (
+            config.get("repeat_agg") == "sum"
+            and config.get("stack_by")
+            and stack_multi
+        ):
+            return _error(
+                "sum cannot be combined with a multiple_option split;"
+                " use average, max or min",
+                index,
+                "config.repeat_agg",
             )
 
     # Vocabularies the values endpoint already enforces at render time.

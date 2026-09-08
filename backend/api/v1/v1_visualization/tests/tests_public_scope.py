@@ -148,6 +148,16 @@ class AllowlistTestCase(TestCase):
         ])
         self.assertEqual(allowed.forms, {6001, 6002})
 
+    def test_a_value_question_is_collected(self):
+        allowed = self.build([
+            {
+                "form": 6002,
+                "question": 600203,
+                "config": {"value_question": 600202},
+            },
+        ])
+        self.assertEqual(allowed.questions, {600203, 600202})
+
     def test_criteria_question_ids_are_collected(self):
         allowed = self.build([
             {"form": 6001, "question": None, "config": {

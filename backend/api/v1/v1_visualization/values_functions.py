@@ -26,6 +26,66 @@ from api.v1.v1_visualization.functions import (
 RESERVED_ROW_KEYS = {"label", "group", "color", "value"}
 
 
+def value_by_data(value_question, data_ids):
+    """`{data_id: [numbers]}` for the value question, or None.
+
+    None means "no value question", which every caller reads as "count
+    rows" — the behaviour every stored dashboard has today.
+
+    A list per submission rather than a single number, because a
+    repeatable group answers the same question several times. Collapsing
+    those is `repeat_agg`'s job and it happens once, at the cell.
+    """
+    if value_question is None:
+        return None
+    values = defaultdict(list)
+    rows = Answers.objects.filter(
+        data_id__in=data_ids,
+        question_id=value_question.id,
+        value__isnull=False,
+    ).values_list("data_id", "value")
+    for data_id, value in rows:
+        values[data_id].append(value)
+    return values
+
+
+def aggregate_values(values, agg):
+    """One number from many, in AGG_FUNCS' vocabulary.
+
+    Empty is 0, not None: a bar with no answers is a bar of zero height,
+    and a hole in the middle of a stacked chart reads as a rendering
+    fault rather than as an absence of data.
+    """
+    if not values:
+        return 0
+    if agg == "sum":
+        total = sum(values)
+    elif agg == "max":
+        total = max(values)
+    elif agg == "min":
+        total = min(values)
+    elif agg == "last":
+        total = values[-1]
+    else:
+        total = sum(values) / len(values)
+    return round(total, 2)
+
+
+def cell_value(data_ids, values_by_data, agg):
+    """The number one bar or segment carries.
+
+    `values_by_data` is None for a plain count, which is why the count
+    path stays a `len()` rather than growing a special case: the two
+    readings of "how big is this cell" meet here and nowhere else.
+    """
+    if values_by_data is None:
+        return len(data_ids)
+    numbers = []
+    for data_id in data_ids:
+        numbers.extend(values_by_data.get(data_id, []))
+    return aggregate_values(numbers, agg)
+
+
 def build_stack_labels(options):
     """Row keys for the stack columns: unique, and never structural.
 
@@ -397,6 +457,12 @@ def handle_option_question(form, question, params):
     self_crosstab = (
         group_by == "option" and stack_question.id == question.id
     )
+    # Resolved once for every path below: None means "count rows", which
+    # is what every stored dashboard does (VIZ-015.b).
+    values_by_data = value_by_data(
+        params.get("value_question"), data_ids
+    )
+
     if stack_by == "option" and group_by and not self_crosstab:
         stack_options = (
             options
@@ -407,7 +473,8 @@ def handle_option_question(form, question, params):
         )
         return handle_stack_by_option(
             question, options, stack_question, stack_options,
-            data_ids, qs, is_latest, params
+            data_ids, qs, is_latest, params,
+            values_by_data=values_by_data
         )
 
     if group_by == "option":
@@ -422,6 +489,8 @@ def handle_option_question(form, question, params):
             ),
             form=form,
             params=params,
+            values_by_data=values_by_data,
+            agg=params.get("repeat_agg", "average"),
         )
 
     return [], []
@@ -606,6 +675,7 @@ def _option_group_by_option(
     question, options, data_ids, qs,
     is_latest, value_type, restricted_values=None,
     include_unanswered=False, form=None, params=None,
+    values_by_data=None, agg="average",
 ):
     """Group by option values (donut chart).
 
@@ -628,7 +698,10 @@ def _option_group_by_option(
         option_values & restricted_values
         if restricted_values else option_values
     )
-    tallies = defaultdict(int)
+    # Submission ids per option, not a running count: a count is len()
+    # of the list, and a value question needs the ids to look its
+    # numbers up (VIZ-015.b).
+    members = defaultdict(list)
     qualifying_parents = set()
     # Registration forms have no parent; track data_id directly.
     # Monitoring forms track data__parent_id (the registration ID).
@@ -636,20 +709,26 @@ def _option_group_by_option(
     tracking_field = (
         "data_id" if is_registration else "data__parent_id"
     )
-    for tracking_id, opts in Answers.objects.filter(
+    # `data_id` alongside the tracking field: the tracking field may be
+    # the PARENT's id (used for the percentage denominator), while a
+    # value lookup is always keyed on the submission itself.
+    for tracking_id, data_id, opts in Answers.objects.filter(
         data_id__in=data_ids,
         question_id=question.id,
         options__isnull=False,
-    ).values_list(tracking_field, "options"):
+    ).values_list(tracking_field, "data_id", "options"):
         matched = False
         for v in (opts or []):
             if v in tally_values:
-                tallies[v] += 1
+                members[v].append(data_id)
                 matched = True
         if matched:
             qualifying_parents.add(tracking_id)
 
-    counts = [tallies.get(opt.value, 0) for opt in options]
+    counts = [
+        cell_value(members.get(opt.value, []), values_by_data, agg)
+        for opt in options
+    ]
 
     bucket_count = (
         _count_no_info_parents(form, params, qualifying_parents)
@@ -914,7 +993,7 @@ def _number_group_by_month(
 
 def handle_stack_by_option(
     question, options, stack_question, stack_options,
-    data_ids, qs, is_latest, params
+    data_ids, qs, is_latest, params, values_by_data=None
 ):
     """Handle stack_by=option: stacked bar charts.
 
@@ -925,6 +1004,7 @@ def handle_stack_by_option(
     """
     group_by = params.get("group_by")
     value_type = params.get("value_type", "number")
+    agg = params.get("repeat_agg", "average")
 
     labels = build_stack_labels(stack_options)
     colors = [o.color for o in stack_options]
@@ -936,19 +1016,22 @@ def handle_stack_by_option(
     if group_by in ("month", "date"):
         return _stack_option_by_period(
             stack_question, stack_options, labels, colors,
-            data_ids, value_type, is_multi, params, period=group_by
+            data_ids, value_type, is_multi, params, period=group_by,
+            values_by_data=values_by_data, agg=agg
         )
 
     if group_by == "parent_id":
         return _stack_option_by_parent(
             stack_question, stack_options, labels, colors,
-            data_ids, qs, is_latest
+            data_ids, qs, is_latest,
+            values_by_data=values_by_data, agg=agg
         )
 
     if group_by == "option":
         return _stack_option_crosstab(
             question, options, stack_question, stack_options,
-            labels, colors, data_ids, value_type, is_multi
+            labels, colors, data_ids, value_type, is_multi,
+            values_by_data=values_by_data, agg=agg
         )
 
     return {
@@ -986,7 +1069,8 @@ def _apply_percentage(row, labels, cells, submission_ids, is_multi):
 
 def _stack_option_by_period(
     question, options, labels, colors,
-    data_ids, value_type, is_multi, params, period="month"
+    data_ids, value_type, is_multi, params, period="month",
+    values_by_data=None, agg="average"
 ):
     """Stack by option, grouped by month or by day.
 
@@ -1035,7 +1119,9 @@ def _stack_option_by_period(
         ).values("month", "options", "data_id")
         get_key = lambda r: format_month_group(r["month"])  # noqa: E731
 
-    buckets = defaultdict(lambda: defaultdict(int))
+    # Submission ids per (period, option), not a running count — see
+    # `cell_value`. A count is len() of the list.
+    buckets = defaultdict(lambda: defaultdict(list))
     submissions = defaultdict(set)
     for r in rows:
         key = get_key(r)
@@ -1044,12 +1130,15 @@ def _stack_option_by_period(
         submissions[key].add(r["data_id"])
         for v in (r["options"] or []):
             if v in option_values:
-                buckets[key][v] += 1
+                buckets[key][v].append(r["data_id"])
 
     data = []
     for key in sorted(buckets.keys()):
         row = {"group": key, "label": format_label(key)}
-        cells = [buckets[key].get(o.value, 0) for o in options]
+        cells = [
+            cell_value(buckets[key].get(o.value, []), values_by_data, agg)
+            for o in options
+        ]
         for label, cell in zip(labels, cells):
             row[label] = cell
         if value_type == "percentage":
@@ -1071,7 +1160,7 @@ def _stack_option_by_period(
 
 def _stack_option_by_parent(
     question, options, labels, colors,
-    data_ids, qs, is_latest
+    data_ids, qs, is_latest, values_by_data=None, agg="average"
 ):
     """Stack by option, grouped by parent_id.
 
@@ -1127,13 +1216,23 @@ def _stack_option_by_parent(
             ).values_list("id", flat=True))
             p_name = parent.name
 
+        # One query per site rather than one per (site, option): the
+        # answers are fetched once and bucketed here, which the value
+        # question needs anyway — it has to know WHICH submissions are
+        # in a cell, not just how many.
+        chosen = defaultdict(list)
+        for data_id, opts in Answers.objects.filter(
+            data_id__in=p_data_ids,
+            question_id=question.id,
+        ).values_list("data_id", "options"):
+            for value in (opts or []):
+                chosen[value].append(data_id)
+
         row = {"label": p_name, "group": parent.id}
         for option, label in zip(options, labels):
-            row[label] = Answers.objects.filter(
-                data_id__in=p_data_ids,
-                question_id=question.id,
-                options__contains=[option.value],
-            ).count()
+            row[label] = cell_value(
+                chosen.get(option.value, []), values_by_data, agg
+            )
         data.append(row)
 
     return {
@@ -1146,7 +1245,8 @@ def _stack_option_by_parent(
 
 def _stack_option_crosstab(
     question, options, stack_question, stack_options,
-    labels, colors, data_ids, value_type, is_multi
+    labels, colors, data_ids, value_type, is_multi,
+    values_by_data=None, agg="average"
 ):
     """Cross-tab: bars are one question's options, columns another's.
 
@@ -1176,7 +1276,10 @@ def _stack_option_crosstab(
     bars_by_data = selections(question.id, bar_value_set)
     stacks_by_data = selections(stack_question.id, stack_value_set)
 
-    counts = defaultdict(lambda: defaultdict(int))
+    # The submissions in each (bar, column) cell, rather than a running
+    # count: a count is len() of the set, and a value question needs the
+    # ids themselves to look their numbers up (VIZ-015.b).
+    members = defaultdict(lambda: defaultdict(list))
     submissions = defaultdict(set)
     for data_id, bars in bars_by_data.items():
         stacks = stacks_by_data.get(data_id)
@@ -1189,12 +1292,15 @@ def _stack_option_crosstab(
         for bar in bars:
             submissions[bar].add(data_id)
             for stack in stacks:
-                counts[bar][stack] += 1
+                members[bar][stack].append(data_id)
 
     indexed = []
     for index, value in enumerate(bar_values):
         row = {"group": value, "label": bar_labels[index]}
-        cells = [counts[value].get(s, 0) for s in stack_values]
+        cells = [
+            cell_value(members[value].get(s, []), values_by_data, agg)
+            for s in stack_values
+        ]
         for label, cell in zip(labels, cells):
             row[label] = cell
         total = sum(cells)

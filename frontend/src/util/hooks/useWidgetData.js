@@ -203,6 +203,10 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
       // Null otherwise, and compact() drops it, so an unstacked or
       // self-stacked widget sends nothing new.
       stack_question_id: isCrossForm(widget) ? null : config.stack_question,
+      // The number question the bars are measured by. Null unless the
+      // author picked one, and compact() drops it, so a counting widget
+      // sends nothing new (VIZ-015.b).
+      value_question_id: config.value_question,
       value_type: config.value_type,
       repeat_agg: config.repeat_agg,
       option_value: config.option_value,

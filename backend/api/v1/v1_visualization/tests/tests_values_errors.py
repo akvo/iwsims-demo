@@ -190,3 +190,69 @@ class ValuesErrorTestCases(VisualizationValuesTestMixin, APITestCase):
             f"&stack_question_id={self.Q_OPTION_ID}"
         )
         self.assertEqual(response.status_code, 200)
+
+    # ── value_question_id (VIZ-015.b) ──
+
+    def test_value_question_requires_an_option_question(self):
+        """With a number question there are no bars to give a height."""
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_NUMBER_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&group_by=month"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_value_question_must_be_a_number_question(self):
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_MULTI_ID}"
+            "&group_by=option"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_value_question_must_be_on_the_form(self):
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&value_question_id=99999&group_by=option"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_value_question_is_refused_with_percentage(self):
+        """A percent of an aggregate needs a denominator nobody has
+        chosen yet, and multi-choice attribution compounds it (D-2)."""
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&group_by=option&value_type=percentage"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_sum_is_refused_with_a_multi_choice_split(self):
+        """The bar would total more money than exists (D-1).
+
+        A submission selecting three options contributes its full value
+        to each, which is right for an average and wrong for a sum.
+        """
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&stack_question_id={self.Q_MULTI_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum&group_by=option&stack_by=option"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_average_is_allowed_with_a_multi_choice_split(self):
+        """Full attribution is correct for an average."""
+        response = self.client.get(
+            f"{self.BASE_URL}?form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&stack_question_id={self.Q_MULTI_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=average&group_by=option&stack_by=option"
+        )
+        self.assertEqual(response.status_code, 200)

@@ -94,6 +94,15 @@ from utils.custom_serializer_fields import (
             enum=["option", "parent_id"],
         ),
         OpenApiParameter(
+            name="value_question_id", required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description=(
+                "Number question whose aggregate becomes the bar"
+                " height. Omit to count submissions."
+            ),
+        ),
+        OpenApiParameter(
             name="stack_question_id", required=False,
             type=OpenApiTypes.INT,
             location=OpenApiParameter.QUERY,
@@ -214,6 +223,7 @@ def visualization_values(request, version):
             validated.get("question_id"),
             validated.get("question_y"),
             validated.get("stack_question_id"),
+            validated.get("value_question_id"),
             validated.get("date_question_id"),
             *question_ids_in_criteria(
                 request.query_params.get("criteria")
@@ -232,6 +242,7 @@ def visualization_values(request, version):
         "group_by": validated.get("group_by"),
         "stack_by": validated.get("stack_by"),
         "stack_question": validated.get("stack_question"),
+        "value_question": validated.get("value_question"),
         "sum_by": validated.get("sum_by"),
         "value_type": validated.get(
             "value_type", "number"

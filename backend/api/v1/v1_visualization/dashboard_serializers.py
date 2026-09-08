@@ -39,6 +39,10 @@ class ValuesFilterSerializer(serializers.Serializer):
     # widget's own question", which is what stack_by=option has always
     # meant, so every stored dashboard keeps its current behaviour.
     stack_question_id = serializers.IntegerField(required=False)
+    # The number question whose aggregate becomes the bar height.
+    # Absent means "count rows", which is what every stored dashboard
+    # does (VIZ-015.b).
+    value_question_id = serializers.IntegerField(required=False)
     sum_by = serializers.ChoiceField(
         choices=["id", "parent_id"],
         required=False,
@@ -247,6 +251,69 @@ class ValuesFilterSerializer(serializers.Serializer):
                     ),
                 })
             data["stack_question"] = stack_question
+
+        value_question_id = data.get("value_question_id")
+        if value_question_id:
+            if not question or question.type not in STACK_QUESTION_TYPES:
+                # The value supplies the HEIGHT; the measured question
+                # supplies the bars. With a number question there are no
+                # bars to give a height to, and the two would fight.
+                raise serializers.ValidationError({
+                    "value_question_id": (
+                        "value_question_id requires an option or"
+                        " multiple_option question_id."
+                    ),
+                })
+            if data.get("value_type") == "percentage":
+                # "60% of cost" needs a denominator, and the multi-select
+                # attribution below would compound that choice. Refused
+                # rather than answered wrongly (D-2).
+                raise serializers.ValidationError({
+                    "value_question_id": (
+                        "value_question_id cannot be combined with"
+                        " value_type=percentage."
+                    ),
+                })
+            value_question = Questions.objects.filter(
+                pk=value_question_id,
+                form_id=form_id,
+            ).first()
+            if not value_question:
+                raise serializers.ValidationError({
+                    "value_question_id": (
+                        f"Question {value_question_id} not found"
+                        f" on form {form_id}."
+                    ),
+                })
+            if value_question.type != QuestionTypes.number:
+                raise serializers.ValidationError({
+                    "value_question_id": (
+                        "value question must be a number question."
+                    ),
+                })
+            stack_question = data.get("stack_question")
+            stack_is_multi = (
+                stack_question.type == QuestionTypes.multiple_option
+                if stack_question
+                else question.type == QuestionTypes.multiple_option
+            )
+            if (
+                data.get("repeat_agg") == "sum"
+                and stack_by
+                and stack_is_multi
+            ):
+                # A submission selecting three options contributes its
+                # full value to each, which is right for an average and
+                # wrong for a sum: the bar would total three times the
+                # money that exists, and a stacked bar reads as a
+                # partition of a whole (D-1).
+                raise serializers.ValidationError({
+                    "repeat_agg": (
+                        "sum cannot be combined with a multiple_option"
+                        " split; use average, max or min."
+                    ),
+                })
+            data["value_question"] = value_question
 
         return data
 

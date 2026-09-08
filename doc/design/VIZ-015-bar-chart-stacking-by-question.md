@@ -1047,12 +1047,14 @@ the cross-tab response shape is not guessable from the parameter list alone.
 
 ## Out of scope
 
-- **Stacking a number-valued bar.** A bar whose value is an average or sum
-  of a number question, split by an option question, is a real request and
-  a different computation: it aggregates a value column per stack rather
-  than counting rows, and needs its own branch in
-  `handle_number_question`. Deliberately deferred — the UAC is about
-  counting, and folding both into one slice doubles the test matrix.
+- ~~**Stacking a number-valued bar.**~~ Deferred here, then requested and
+  built as [VIZ-015.b](VIZ-015.b-value-question-bars.md) in this same PR.
+  The prediction held: it does aggregate a value column per cell rather
+  than counting rows, and all four option paths needed a value variant.
+  What the deferral got wrong was the location — the work lands in
+  `handle_option_question`'s handlers, not in `handle_number_question`,
+  because the bars still come from an option question and only their
+  height changes.
 - **Line charts.** `NEEDS_STACK_BY` includes `line`, and multi-line by
   another question's options is coherent, but the line path stacks by
   `parent_id` on a number question and shares no code with this one. The

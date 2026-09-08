@@ -12,6 +12,8 @@ import {
   stackChangeOf,
   groupByOptions,
   withValidGroupBy,
+  valueQuestionOptions,
+  repeatAggOptions,
   VALID_STACK_BY,
 } from "../builderConstants";
 
@@ -673,5 +675,75 @@ describe("withValidGroupBy", () => {
   test("treats an absent grouping as the default", () => {
     const next = withValidGroupBy({}, groupByOptions({ type: "number" }, {}));
     expect(next.group_by).toBe("month");
+  });
+});
+
+// =========================================================
+// Bars measured by a number question (VIZ-015.b)
+// =========================================================
+
+describe("valueQuestionOptions", () => {
+  const QUESTIONS = [
+    { id: 1, label: "Status", type: "option" },
+    { id: 2, label: "Features", type: "multiple_option" },
+    { id: 3, label: "Project cost", type: "number" },
+    { id: 4, label: "Households", type: "number" },
+    { id: 5, label: "Inspected", type: "date" },
+  ];
+
+  test("offers the form's number questions", () => {
+    const values = valueQuestionOptions(QUESTIONS, QUESTIONS[0]).map(
+      (v) => v.value
+    );
+    expect(values).toEqual([3, 4]);
+  });
+
+  test("offers nothing when the measured question is a number", () => {
+    // The value supplies the HEIGHT and the measured question the bars,
+    // so with a number question there is nothing to give a height to.
+    expect(valueQuestionOptions(QUESTIONS, QUESTIONS[2])).toEqual([]);
+  });
+
+  test("offers nothing before a question is picked", () => {
+    expect(valueQuestionOptions(QUESTIONS, null)).toEqual([]);
+  });
+
+  test("carries the type through for the icon", () => {
+    expect(valueQuestionOptions(QUESTIONS, QUESTIONS[0])[0].type).toBe(
+      "number"
+    );
+  });
+});
+
+describe("repeatAggOptions", () => {
+  test("offers every aggregation for a single-choice split", () => {
+    expect(repeatAggOptions(false, true).map((a) => a.value)).toContain("sum");
+  });
+
+  test("withholds sum for a multi-choice split", () => {
+    // A submission selecting three options contributes its full value to
+    // each: right for an average, and for a sum it totals three times
+    // the money that exists.
+    expect(repeatAggOptions(true, true).map((a) => a.value)).not.toContain(
+      "sum"
+    );
+    expect(repeatAggOptions(true, true).map((a) => a.value)).toContain(
+      "average"
+    );
+  });
+
+  test("keeps sum when the chart is not stacked", () => {
+    // Unstacked bars do not visually add up, so the chart never performs
+    // the addition that makes the overlap misleading.
+    expect(repeatAggOptions(true, false).map((a) => a.value)).toContain("sum");
+  });
+});
+
+describe("pruneConfigForForm and the value question", () => {
+  test("drops a value question the new form does not have", () => {
+    const next = pruneConfigForForm({ value_question: 600202 }, [
+      { id: 600203 },
+    ]);
+    expect(next.value_question).toBeNull();
   });
 });

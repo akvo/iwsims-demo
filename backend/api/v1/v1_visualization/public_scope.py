@@ -95,6 +95,11 @@ def allowlist_from(dashboard):
         if stack_form_id is not None:
             forms.add(stack_form_id)
 
+        # The number question a bar is measured by (VIZ-015.b).
+        value_qid = _as_id(widget_config.get("value_question"))
+        if value_qid is not None:
+            questions.add(value_qid)
+
         # Both carry author-entered question ids under the same key:
         # criteria narrow a widget's datapoints, and table columns of
         # source `answer`, `parent_answer` or `latest_date` name one

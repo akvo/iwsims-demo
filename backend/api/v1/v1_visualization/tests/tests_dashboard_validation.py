@@ -301,6 +301,92 @@ class DashboardValidationTestCase(TestCase, ProfileTestHelperMixin):
         self.assertIsNotNone(err)
         self.assertEqual(err["field"], "config.stack_question")
 
+    # ── §4.5: config.value_question (VIZ-015.b) ──
+
+    def test_a_valid_value_question_is_accepted(self):
+        self.assertIsNone(self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "value_question": 600202,
+                "repeat_agg": "sum",
+            },
+        )))
+
+    def test_value_question_requires_an_option_question(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=600202,
+            config={
+                "measure": "current_state",
+                "group_by": "month",
+                "value_question": 600202,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.value_question")
+
+    def test_value_question_must_be_a_number_question(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "value_question": self.q_multi.id,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.value_question")
+
+    def test_value_question_is_refused_with_percentage(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "value_question": 600202,
+                "value_type": "percentage",
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.value_question")
+
+    def test_value_question_is_refused_with_a_cross_form_stack(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "parent_id",
+                "stack_by": "option",
+                "stack_form": self.root.id,
+                "stack_question": self.q_reg_option.id,
+                "value_question": 600202,
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.value_question")
+
+    def test_sum_is_refused_with_a_multi_choice_split(self):
+        err = self.check(self.widget(
+            type="bar",
+            question=self.q_option.id,
+            config={
+                "measure": "current_state",
+                "group_by": "option",
+                "stack_by": "option",
+                "stack_question": self.q_multi.id,
+                "value_question": 600202,
+                "repeat_agg": "sum",
+            },
+        ))
+        self.assertIsNotNone(err)
+        self.assertEqual(err["field"], "config.repeat_agg")
+
     # ── §4.5: root_form ──
 
     def test_root_form_must_be_a_registration_form(self):

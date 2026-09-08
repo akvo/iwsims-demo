@@ -710,3 +710,106 @@ class ParentGroupContractTestCases(
         )
         groups = {row["group"] for row in data["data"]}
         self.assertEqual(groups, {self.reg1.id, self.reg2.id})
+
+
+@override_settings(USE_TZ=False, TEST_ENV=True)
+class ValueQuestionTestCases(VisualizationValuesTestMixin, APITestCase):
+    """Bars measured by a number question (VIZ-015.b).
+
+    The fixture's number question is `measurement_value` (600202):
+      mon1a active  10.0   mon1b active  20.0
+      mon2a inactive 30.0  mon2b pending 40.0
+    """
+
+    def get(self, query):
+        response = self.client.get(f"{self.BASE_URL}?{query}")
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def rows(self, data):
+        return {r["label"]: r["value"] for r in data["data"]}
+
+    def test_without_a_value_question_the_bars_are_counts(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&group_by=option&monitoring=all"
+        )
+        self.assertEqual(
+            self.rows(data),
+            {"Active": 2, "Inactive": 1, "Pending": 1},
+        )
+
+    def test_sum_replaces_the_count(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum&group_by=option&monitoring=all"
+        )
+        # Active holds 10 + 20; the other two hold one submission each.
+        self.assertEqual(
+            self.rows(data),
+            {"Active": 30.0, "Inactive": 30.0, "Pending": 40.0},
+        )
+
+    def test_average_over_the_same_bars(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=average&group_by=option&monitoring=all"
+        )
+        self.assertEqual(self.rows(data)["Active"], 15.0)
+
+    def test_an_option_with_no_submissions_is_zero_not_missing(self):
+        # A hole in a bar chart reads as a rendering fault; a zero reads
+        # as an absence of data, which is what it is.
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum&group_by=option&monitoring=latest"
+        )
+        self.assertIn("Active", self.rows(data))
+
+    def test_the_cross_tab_aggregates_per_cell(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&stack_question_id={self.Q_MULTI_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=average"
+            "&group_by=option&stack_by=option&monitoring=all"
+        )
+        rows = {r["label"]: r for r in data["data"]}
+        # Active = mon1a (10, features x+y) and mon1b (20, features y+z).
+        # Feature Y holds both, so its average is 15.
+        self.assertEqual(rows["Active"]["Feature Y"], 15.0)
+        self.assertEqual(rows["Active"]["Feature X"], 10.0)
+        self.assertEqual(rows["Active"]["Feature Z"], 20.0)
+
+    def test_stacked_by_month_aggregates_per_cell(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum"
+            "&group_by=month&stack_by=option&monitoring=all"
+        )
+        rows = {r["label"]: r for r in data["data"]}
+        # Jan: mon1a active 10, mon2a inactive 30.
+        self.assertEqual(rows["Jan 2025"]["Active"], 10.0)
+        self.assertEqual(rows["Jan 2025"]["Inactive"], 30.0)
+
+    def test_stacked_by_site_aggregates_per_cell(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            f"&value_question_id={self.Q_NUMBER_ID}"
+            "&repeat_agg=sum"
+            "&group_by=parent_id&stack_by=option&monitoring=all"
+        )
+        rows = {r["label"]: r for r in data["data"]}
+        # Site Alpha is active twice: 10 + 20.
+        self.assertEqual(rows["Site Alpha"]["Active"], 30.0)

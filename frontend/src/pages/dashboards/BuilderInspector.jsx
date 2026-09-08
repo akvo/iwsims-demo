@@ -12,7 +12,6 @@ import {
   NEEDS_REPEAT_AGG,
   NEEDS_COLOR,
   VALID_VALUE_TYPE,
-  VALID_REPEAT_AGG,
   VALID_ORIENTATION,
   VALID_PIE_VARIANT,
   VALID_MEASURE,
@@ -30,6 +29,8 @@ import {
   stackChangeOf,
   groupByOptions,
   withValidGroupBy,
+  valueQuestionOptions,
+  repeatAggOptions,
   tableColumnOptions,
   monitoringForms,
 } from "./builderConstants";
@@ -315,6 +316,17 @@ const BuilderInspector = ({
   ).filter((s) => wType === "bar" || !String(s.value).startsWith("q:"));
   // Cross-form joins per site, so the grouping is derived, not chosen.
   const stackIsCrossForm = Boolean(wConfig.stack_form);
+
+  // The number questions this bar could be measured by, and the
+  // aggregations that stay honest for the split it carries.
+  const valueChoices = valueQuestionOptions(allQuestions, selectedQuestion);
+  const splitQuestion = wConfig.stack_question
+    ? allQuestions.find((q) => q.id === wConfig.stack_question)
+    : selectedQuestion;
+  const aggChoices = repeatAggOptions(
+    splitQuestion?.type === "multiple_option",
+    Boolean(wConfig.stack_by)
+  );
 
   // Which groupings draw at all, given the question and the stack.
   const groupChoices = groupByOptions(selectedQuestion, wConfig);
@@ -644,6 +656,48 @@ const BuilderInspector = ({
           </div>
         )}
 
+        {/* Value — the bar's height, when it is not a count */}
+        {NEEDS_GROUP_BY.has(wType) && valueChoices.length > 0 && (
+          <div className="builder-inspector-field">
+            <label className="builder-inspector-label">Value</label>
+            <Select
+              value={wConfig.value_question || null}
+              onChange={(val) => {
+                // Percentage has no defined denominator over an
+                // aggregate yet (D-2), so picking a value clears it
+                // rather than leaving a config the endpoint refuses.
+                onWidgetChange({
+                  ...widget,
+                  config: {
+                    ...widget.config,
+                    value_question: val || null,
+                    value_type: val ? "number" : widget.config?.value_type,
+                  },
+                });
+              }}
+              placeholder="Number of submissions"
+              style={{ width: "100%" }}
+              allowClear
+              optionLabelProp="label"
+            >
+              {valueChoices.map((q) => (
+                <Select.Option
+                  key={q.value}
+                  value={q.value}
+                  label={<QuestionLabel label={q.label} type={q.type} />}
+                >
+                  <QuestionLabel label={q.label} type={q.type} />
+                </Select.Option>
+              ))}
+            </Select>
+            <div className="builder-inspector-hint">
+              {wConfig.value_question
+                ? "Bars show this question's total, not a count."
+                : "Leave empty to count submissions."}
+            </div>
+          </div>
+        )}
+
         {/* Group by */}
         {NEEDS_GROUP_BY.has(wType) && !groupByIsForced && (
           <div className="builder-inspector-field">
@@ -785,7 +839,10 @@ const BuilderInspector = ({
               onChange={(val) => updateConfig("value_type", val)}
               style={{ width: "100%" }}
             >
-              {VALID_VALUE_TYPE.map((v) => (
+              {(wConfig.value_question
+                ? VALID_VALUE_TYPE.filter((v) => v.value !== "percentage")
+                : VALID_VALUE_TYPE
+              ).map((v) => (
                 <Select.Option key={v.value} value={v.value}>
                   {v.label}
                 </Select.Option>
@@ -798,14 +855,16 @@ const BuilderInspector = ({
         {NEEDS_REPEAT_AGG.has(wType) && (
           <div className="builder-inspector-field">
             <label className="builder-inspector-label">
-              Repeat aggregation
+              {wConfig.value_question
+                ? "Combine values by"
+                : "Repeat aggregation"}
             </label>
             <Select
               value={wConfig.repeat_agg || "average"}
               onChange={(val) => updateConfig("repeat_agg", val)}
               style={{ width: "100%" }}
             >
-              {VALID_REPEAT_AGG.map((r) => (
+              {aggChoices.map((r) => (
                 <Select.Option key={r.value} value={r.value}>
                   {r.label}
                 </Select.Option>

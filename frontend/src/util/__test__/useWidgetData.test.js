@@ -1209,3 +1209,37 @@ describe("a stack the server declined to draw", () => {
     ]);
   });
 });
+
+describe("value question", () => {
+  test("reaches the request only when the author picked one", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          value_question: 600202,
+          repeat_agg: "sum",
+        },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls[0][0].params.value_question_id).toBe(600202);
+    expect(axios.mock.calls[0][0].params.repeat_agg).toBe("sum");
+  });
+
+  test("a counting widget sends nothing new", async () => {
+    axios.mockResolvedValue({ data: { data: [], labels: [] } });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: { measure: "all_submissions", group_by: "option" },
+      })
+    );
+    await settle(probe);
+    expect(axios.mock.calls[0][0].params).not.toHaveProperty(
+      "value_question_id"
+    );
+  });
+});
