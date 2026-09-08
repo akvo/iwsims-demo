@@ -69,7 +69,7 @@ in brackets is where the work lives, not an extra condition.
       renders [S-3]
 - [x] The stack question is validated against the widget's own form, so
       cross-form stacking is unreachable through either entry point
-      [S-1, S-3]. See VIZ-016 for why that turned out to be the wrong
+      [S-1, S-3]. See VIZ-015.a for why that turned out to be the wrong
       long-term rule — the useful direction has a working precedent.
 - [x] A stack question requires `group_by=option`, refused at the
       serializer, at `validate_widget` and in the inspector (D-4)
@@ -980,7 +980,7 @@ the cross-tab response shape is not guessable from the parameter list alone.
 - **Pie and KPI.** Neither takes `stack_by` today; nothing here changes
   that.
 - **Cross-form stacking.** Deferred to
-  [VIZ-016](VIZ-016-cross-form-stacked-bar.md), not forbidden. This
+  [VIZ-015.a](VIZ-015.a-cross-form-stacked-bar.md), not forbidden. This
   document originally said "not allowed", citing VIZ-001 D-3. That reading
   was too broad: D-3 constrains which form a widget is *bound* to, not
   which answers it may read, and `parent_criteria` plus the table's
