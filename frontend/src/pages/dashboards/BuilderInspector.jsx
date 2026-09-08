@@ -24,6 +24,7 @@ import {
   DEFAULT_COLOR_SCHEME,
   TYPE_LABELS,
   NEEDS_SCATTER_Y,
+  NEEDS_LINE_DATE_X,
   defaultMeasure,
   pruneConfigForForm,
   tableColumnOptions,
@@ -259,9 +260,10 @@ const BuilderInspector = ({
   const isMonitoring = showForm && isMonitoringForm(widget.form);
   const allQuestions = showQuestion ? questionsForForm(widget.form) : [];
   const questions =
-    wType === "scatter"
+    wType === "scatter" || wType === "line"
       ? allQuestions.filter((q) => q.type === "number")
       : allQuestions;
+  const dateQuestions = allQuestions.filter((q) => q.type === "date");
   const selectedQuestion = allQuestions.find((q) => q.id === widget.question);
   const hasOptionQuestion =
     selectedQuestion?.type === "option" ||
@@ -371,6 +373,9 @@ const BuilderInspector = ({
                   nextConfig.x_axis_label = null;
                   nextConfig.y_axis_label = null;
                 }
+                if (wType === "line") {
+                  nextConfig.date_question_id = null;
+                }
                 onWidgetChange({
                   ...widget,
                   form: val,
@@ -433,6 +438,8 @@ const BuilderInspector = ({
                 ? "Status question"
                 : wType === "scatter"
                 ? "X axis (number question)"
+                : wType === "line"
+                ? "Y axis (number question)"
                 : "Question"}
             </label>
             <Select
@@ -529,6 +536,40 @@ const BuilderInspector = ({
             {!wConfig.question_y && (
               <div className="builder-inspector-hint">
                 Default: each datapoint counts as 1
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Line X axis (date question) */}
+        {NEEDS_LINE_DATE_X.has(wType) && widget.form && (
+          <div className="builder-inspector-field">
+            <label className="builder-inspector-label">
+              X axis (date question)
+            </label>
+            <Select
+              value={wConfig.date_question_id || null}
+              onChange={(val) => {
+                updateConfig("date_question_id", val || null);
+              }}
+              placeholder="Submission date"
+              style={{ width: "100%" }}
+              allowClear
+              optionLabelProp="label"
+            >
+              {dateQuestions.map((q) => (
+                <Select.Option
+                  key={q.id}
+                  value={q.id}
+                  label={<QuestionLabel label={q.label} type={q.type} />}
+                >
+                  <QuestionLabel label={q.label} type={q.type} />
+                </Select.Option>
+              ))}
+            </Select>
+            {!wConfig.date_question_id && (
+              <div className="builder-inspector-hint">
+                Default: groups by submission date
               </div>
             )}
           </div>

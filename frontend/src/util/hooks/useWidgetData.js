@@ -185,6 +185,23 @@ const buildRequest = (widget, filters, rootFormId, dashboardSlug, page = 1) => {
     // it is optional, and a count-only KPI has none.
     return null;
   }
+
+  if (type === "line") {
+    return {
+      endpoint: "visualization/values",
+      params: compact({
+        form_id: widget.form,
+        question_id: widget.question,
+        ...expandMeasure(widget, rootFormId),
+        group_by: "month",
+        administration_id: filters?.administration_id,
+        ...dateFilters(filters),
+        date_question_id: config.date_question_id,
+        dashboard_slug: dashboardSlug,
+      }),
+    };
+  }
+
   return {
     endpoint: "visualization/values",
     params: compact({

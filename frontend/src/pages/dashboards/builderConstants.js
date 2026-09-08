@@ -81,6 +81,7 @@ export const WIDGET_DEFAULTS = {
     color: null,
     config: {
       group_by: "month",
+      date_question_id: null,
       color_scheme: "categorical",
       chart_colors: DEFAULT_CHART_COLORS,
     },
@@ -232,10 +233,10 @@ export const NEEDS_QUESTION = new Set([
   "map",
   "scatter",
 ]);
-export const NEEDS_GROUP_BY = new Set(["bar", "line", "pie"]);
-export const NEEDS_STACK_BY = new Set(["bar", "line"]);
-export const NEEDS_VALUE_TYPE = new Set(["kpi", "bar", "line", "pie"]);
-export const NEEDS_REPEAT_AGG = new Set(["kpi", "bar", "line"]);
+export const NEEDS_GROUP_BY = new Set(["bar", "pie"]);
+export const NEEDS_STACK_BY = new Set(["bar"]);
+export const NEEDS_VALUE_TYPE = new Set(["kpi", "bar", "pie"]);
+export const NEEDS_REPEAT_AGG = new Set(["kpi", "bar"]);
 export const NEEDS_COLOR = new Set([
   "kpi",
   "bar",
@@ -256,6 +257,7 @@ export const NEEDS_MEASURE = new Set([
   "scatter",
 ]);
 export const NEEDS_SCATTER_Y = new Set(["scatter"]);
+export const NEEDS_LINE_DATE_X = new Set(["line"]);
 
 /**
  * The measure a widget should carry for the form it is bound to, or null.
