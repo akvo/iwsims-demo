@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useMemo } from "react";
 import PropTypes from "prop-types";
-import * as echarts from "echarts";
+import useEChartsOption from "./useEChartsOption";
 
 const DEFAULT_COLORS = ["#1890ff", "#64A73B", "#F5A623", "#e41a1c", "#9b59b6"];
 
 const VizScatter = ({ config, data }) => {
-  const boxRef = useRef(null);
-  const chartRef = useRef(null);
   const widgetConfig = config?.config || {};
   const colors = widgetConfig.chart_colors || DEFAULT_COLORS;
   const chartData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -56,41 +54,7 @@ const VizScatter = ({ config, data }) => {
     };
   }, [chartData, colors, xLabel, yLabel]);
 
-  useEffect(() => {
-    const box = boxRef.current;
-    if (!box || !option) {
-      return () => {};
-    }
-
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(box);
-    }
-    chartRef.current.setOption(option, true);
-
-    const sync = () => {
-      if (chartRef.current) {
-        chartRef.current.resize();
-      }
-    };
-
-    let cleanup;
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(sync);
-      observer.observe(box);
-      cleanup = () => observer.disconnect();
-    } else {
-      window.addEventListener("resize", sync);
-      cleanup = () => window.removeEventListener("resize", sync);
-    }
-
-    return () => {
-      cleanup();
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-    };
-  }, [option]);
+  const { boxRef } = useEChartsOption(option);
 
   if (chartData.length === 0) {
     return (

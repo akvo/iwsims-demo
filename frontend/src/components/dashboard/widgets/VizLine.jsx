@@ -1,14 +1,12 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useMemo } from "react";
 import PropTypes from "prop-types";
-import * as echarts from "echarts";
 import useChartResize from "./useChartResize";
+import useEChartsOption from "./useEChartsOption";
 import { Line, StackLine } from "akvo-charts";
 
 const DEFAULT_COLORS = ["#1890ff", "#64A73B", "#F5A623", "#e41a1c", "#9b59b6"];
 
 const CategoryLine = ({ config, data }) => {
-  const boxRef = useRef(null);
-  const chartRef = useRef(null);
   const chartData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
   const option = useMemo(() => {
@@ -49,44 +47,7 @@ const CategoryLine = ({ config, data }) => {
     };
   }, [chartData, config]);
 
-  useEffect(() => {
-    const box = boxRef.current;
-    if (!box || !option) {
-      return () => {};
-    }
-
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(box);
-    }
-    chartRef.current.setOption(option, true);
-
-    let cleanup;
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(() => {
-        if (chartRef.current) {
-          chartRef.current.resize();
-        }
-      });
-      observer.observe(box);
-      cleanup = () => observer.disconnect();
-    } else {
-      const sync = () => {
-        if (chartRef.current) {
-          chartRef.current.resize();
-        }
-      };
-      window.addEventListener("resize", sync);
-      cleanup = () => window.removeEventListener("resize", sync);
-    }
-
-    return () => {
-      cleanup();
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-    };
-  }, [option]);
+  const { boxRef } = useEChartsOption(option);
 
   if (chartData.length === 0) {
     return (
