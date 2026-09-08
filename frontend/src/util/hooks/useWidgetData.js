@@ -369,7 +369,19 @@ const normalize = (widget, response, statusResponse, seriesResponse) => {
   // bar, line, pie
   const rows = response.data || [];
 
-  if (config.stack_by) {
+  // `config.stack_by` says what the author asked for; `stack_labels` says
+  // what the server actually returned. They can disagree: asked to
+  // cross-tab a question against itself the backend declines the diagonal
+  // and answers with the plain option breakdown instead, which carries no
+  // stacks at all. Trusting the config there projected eight rows of real
+  // counts down to bare labels and drew an empty chart. Read the shape,
+  // not the intent.
+  const stacked =
+    Boolean(config.stack_by) &&
+    ((isCrossForm(widget) ? seriesResponse : response)?.stack_labels || [])
+      .length > 0;
+
+  if (stacked) {
     // Cross-form: the bars come from `response` and the stacks from
     // `seriesResponse`, joined on `row.group` — the registration datapoint
     // id both carry. The join MUST run here, before the projection below,

@@ -1166,3 +1166,46 @@ describe("cross-form stacking", () => {
     expect(probe.latest().renderWidget.color).toBe("#64A73B");
   });
 });
+
+describe("a stack the server declined to draw", () => {
+  test("falls back to the unstacked projection", async () => {
+    // Asked to cross-tab a question against itself, the backend returns
+    // the plain option breakdown — real rows, but no stack_labels.
+    // Trusting config.stack_by there threw all of them away and drew an
+    // empty chart with a bare axis.
+    axios.mockResolvedValue({
+      data: {
+        data: [
+          {
+            value: 6,
+            label: "Water Authority",
+            group: "waf",
+            color: "#1b9e77",
+          },
+          {
+            value: 4,
+            label: "Mineral Resources",
+            group: "mrd",
+            color: "#d95f02",
+          },
+        ],
+        labels: ["Water Authority", "Mineral Resources"],
+      },
+    });
+    const probe = run(
+      widget({
+        type: "bar",
+        config: {
+          measure: "all_submissions",
+          group_by: "option",
+          stack_by: "option",
+        },
+      })
+    );
+    await settle(probe);
+    expect(probe.latest().data).toEqual([
+      { label: "Water Authority", value: 6 },
+      { label: "Mineral Resources", value: 4 },
+    ]);
+  });
+});

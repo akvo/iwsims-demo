@@ -2,14 +2,17 @@
 
 **Status:** implemented on
 `feature/349-viz-015-bar-chart-stacking-by-another-question` (GitHub
-[#349]). 502 backend tests and 325 frontend tests pass; flake8, eslint and
+[#349]). 517 backend tests and 373 frontend tests pass; flake8, eslint and
 prettier are clean.
 
 This document supersedes the first draft of the same design, and has been
 brought back in line with the code after implementation. Where the plan and
 the build disagree, the build won and the reasoning is recorded in place —
-see D-4 and D-5, which came out of driving the real builder against a real
-form family and are the two largest departures from the original plan.
+see D-4, D-5 and D-6, which all came out of driving the real builder
+against a real form family and are the largest departures from the original
+plan. D-6 in particular was not in scope when this was written: fixing
+Stack by made the identical defect in the control directly above it
+impossible to leave alone.
 
 ## Problem
 
@@ -253,13 +256,18 @@ flowchart TD
 
 ## Scope
 
-Ten slices. S-1 through S-4 are the feature; S-5, S-6 and S-8 are the
+Twelve slices. S-1 through S-4 are the feature; S-5, S-6 and S-8 are the
 holes the feature opens if left alone; S-7 is a pre-existing defect D-3
 turned up, in code this slice already edits. S-9 and S-10 were added during
 implementation: the first because the plan's "leave `group_by=date`
 returning nothing" was not survivable once the control was in front of a
 user, the second because the first working stacked bar drew datapoint ids
 as bars.
+
+S-11 and S-12 were added later still, from a UI review and a bug report
+against the running builder. S-11 is the widest change in this document:
+it alters the inspector for every pie and every unstacked bar and line,
+which the rest of the work does not touch, so it ships as its own commit.
 
 S-7 is independent of all of them and ships in the same PR as its own
 commit, because it is the only change here that moves numbers on an
@@ -686,6 +694,68 @@ Done when:
 - A row missing one of the `stack_labels` columns renders it as 0 rather
   than as a hole.
 
+### S-11: Group by offers only what draws, and hides when that is one
+
+Not planned. Fixing the Stack by list (D-5) left the identical defect in
+the control directly above it, and a UI review asked why `Group by` existed
+at all for an option question.
+
+Measured against the compute layer, for the most common widget on the board
+— an unstacked option question — exactly one of the four choices returns
+any rows:
+
+| Question | Stack | `group_by` that draw |
+|---|---|---|
+| option, unstacked | — | `option` only; month, date and parent_id return **0 rows** |
+| option, self-stacked | `option` | month, date, parent_id — **not** `option`, which is the diagonal D-4 refuses |
+| option, stacked by another question | `option` + `stack_question` | `option` only, because that is the cross-tab (D-4) |
+| number | — | month, date, parent_id; `option` collapses to one "Total" bar |
+| number, stacked by site | `parent_id` | month, date only |
+| none, or a date question | — | month, date, parent_id |
+
+What to do:
+- `groupByOptions(question, config)` in `builderConstants.js`, beside
+  `stackByOptions` and shaped the same way. It takes the whole config
+  rather than one field because three keys decide the answer:
+  `stack_by`, `stack_question` and `stack_form`.
+- Hide the control when that leaves one value **and** the stored value is
+  already it. Still show it when the stored value is something else, so a
+  widget saved with a grouping that draws nothing stays repairable — one
+  click, and then it hides. Nothing is rewritten behind the author's back.
+- `withValidGroupBy(config, choices)` snaps a stranded grouping to the
+  first that draws. Run it when the question changes **and** when the stack
+  changes, in that order: the stack decides what the bars may be, so the
+  grouping is validated against the stack that just arrived rather than the
+  one being replaced.
+
+Done when:
+- An unstacked option question shows no Group by at all.
+- Selecting a self-stack makes it appear with month / date / site.
+- A number question never sees `This question's options`.
+- A saved widget whose grouping draws nothing still offers the repair.
+
+### S-12: trust the response shape, not the config
+
+`normalize` branched on `config.stack_by`, which says what the author asked
+for rather than what the server returned. The two disagree in exactly one
+place, and D-4 created it: asked to cross-tab a question against itself the
+backend declines the diagonal and answers with the plain option breakdown,
+which carries no `stack_labels` at all.
+
+The stacked branch then projected eight rows of real counts down to bare
+labels and drew an empty chart with a single axis line — reported from the
+running builder, and invisible to every test that mocked a stacked
+response.
+
+What to do:
+- Gate the branch on `config.stack_by` **and** a non-empty `stack_labels`
+  on whichever response supplies the legend. When the server answers
+  unstacked, take the unstacked path.
+
+Done when:
+- A response with rows but no `stack_labels` renders its `{label, value}`
+  rows, asserted in `useWidgetData.test.js`.
+
 ## Worked example: the config and the payloads it produces
 
 Everything below is hand-derived from the existing
@@ -922,6 +992,19 @@ Each is worth stating because each one will otherwise be reported as a bug.
   every `group_by=option` chart behaves the same way — and fixing it is a
   visualization-wide change, not a stacking one. Stated here only so it is
   not mistaken for a regression introduced by the stack question.
+- **Long option labels are thinned on a vertical axis.** echarts' category
+  axis defaults to `axisLabel.interval: "auto"`, which drops labels that
+  would collide, so a bar chart with eight long option names shows roughly
+  every third one. The bars and values are correct; only the labels are
+  hidden. akvo-charts offers no way through — `transformConfig` builds the
+  axis from a fixed set of named parameters and never spreads the caller's
+  config, and its only escape hatch, `rawConfig`, replaces the entire
+  option rather than merging into it. The workaround is
+  `Orientation: Horizontal`, where each bar has its own row; it is what
+  the production chart this feature replicates uses. Pre-existing for any
+  long-labelled chart, but far more visible now that option labels are
+  routinely the category axis. Fixing it properly is an upstream
+  akvo-charts change to pass `axisLabel` through.
 - **Cross-tab cost.** Two flat queries over `data_ids` plus in-Python
   bucketing. The bucket count is `|options| × |stack options|`, both of
   which come from `QuestionOptions` and are small by construction. No new
@@ -943,9 +1026,9 @@ Each is worth stating because each one will otherwise be reported as a bug.
 Actually run, in the container:
 
 ```
-./dc.sh exec backend python manage.py test api.v1.v1_visualization --parallel 4   # 502 passed
+./dc.sh exec backend python manage.py test api.v1.v1_visualization --parallel 4   # 517 passed
 ./dc.sh exec backend flake8                                                        # clean
-CI=true npx react-scripts test --watchAll=false                                    # 45 suites, 325 passed
+CI=true npx react-scripts test --watchAll=false                                    # 46 suites, 373 passed
 npm run lint && npx prettier --check src                                           # clean
 ```
 
@@ -1192,3 +1275,54 @@ error — trades a disabled control for a puzzle, and the table above is
 small and stable enough to be worth the duplication. If it drifts, the
 backend still refuses; the cost of drift is an offered choice that 400s,
 which is exactly where we started.
+
+### D-6: hide a control that never had a choice; disable one that lost it
+
+D-5 fixed the Stack by list and left `Group by` above it offering four
+values where, for the commonest widget, one drew anything. A UI review
+asked the sharper question: why does an option question need the control at
+all? Three findings settled it.
+
+**Grouping by month or site is not useless — it is unreachable unstacked.**
+Measured, an option question grouped by month returns zero rows unless it
+is stacked; stacked, it draws "status over time", which is a real chart
+with no other spelling. So the control stays, but its contents depend on
+the stack.
+
+**Two dropdowns both read "Option value".** They sat one above the other
+meaning different things — bars in Group by, segments in Stack by — and
+selecting both asked for the diagonal D-4 refuses. Group by's entry is now
+**"This question's options"**, and it is not offered at all while the
+question is stacked against itself.
+
+**Hiding and disabling are different tools.** The rule:
+
+> Hide when the control never had a choice. Disable when a choice was
+> taken away.
+
+An unstacked option question has exactly one way to draw and nothing to
+explain, so the control is absent. A cross-form stack fixes the grouping
+*because of something the author just did*, so it stays visible, disabled,
+with a hint. Both were considered for both cases; a hidden control with a
+cause is undiscoverable, and a disabled control with no cause reads as
+broken.
+
+**Options considered and rejected:**
+
+1. *Remove `Group by` for option questions entirely* — the original
+   proposal. It loses "status over time" and "status per site", both of
+   which draw and neither of which is reachable another way.
+2. *Leave it and relabel only* — cheaper, but keeps offering the diagonal.
+3. *Disable rather than hide when there is one choice* — a control that
+   permanently shows one greyed value teaches nothing and costs a row of
+   the panel.
+
+**Impact:** the panel loses a control for the commonest bar, the commonest
+pie, and every unstacked line. That is a wider blast radius than the rest
+of this document, which touches only stacked charts, so it ships as its own
+commit (S-11).
+
+One consequence worth stating: the control **appears** when a stack is
+selected. That looks like churn and is accurate — an option question
+grouped by month genuinely requires a stack, so the control showing up when
+stacking does is the constraint made visible rather than explained.

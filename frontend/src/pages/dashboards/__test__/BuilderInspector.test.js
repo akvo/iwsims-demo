@@ -10,6 +10,9 @@ import {
   withValidStack,
   stackValueOf,
   stackChangeOf,
+  groupByOptions,
+  withValidGroupBy,
+  VALID_STACK_BY,
 } from "../builderConstants";
 
 // =========================================================
@@ -560,5 +563,115 @@ describe("stackValueOf and stackChangeOf", () => {
     );
     expect(next.stack_question).toBeNull();
     expect(next.stack_form).toBeNull();
+  });
+});
+
+// =========================================================
+// Group by offers only what draws
+// =========================================================
+//
+// Measured against the compute layer: an unstacked option question has
+// exactly one grouping that returns rows, and the other three drew an
+// empty chart while saying nothing.
+
+describe("groupByOptions", () => {
+  const values = (q, config) => groupByOptions(q, config).map((g) => g.value);
+  const OPTION = { id: 1, type: "option" };
+  const MULTI = { id: 2, type: "multiple_option" };
+  const NUMBER = { id: 3, type: "number" };
+  const DATE = { id: 4, type: "date" };
+
+  test("an unstacked option question has exactly one grouping", () => {
+    expect(values(OPTION, {})).toEqual(["option"]);
+    expect(values(MULTI, {})).toEqual(["option"]);
+  });
+
+  test("stacked by ITSELF, the bars must be something else", () => {
+    // A question crossed with itself is a diagonal — one segment per bar
+    // — which the backend declines to draw. Offering it put two
+    // dropdowns reading "Option value" one above the other, meaning
+    // different things, and the pairing drew nothing.
+    expect(values(OPTION, { stack_by: "option" })).toEqual([
+      "month",
+      "date",
+      "parent_id",
+    ]);
+  });
+
+  test("stacked by ANOTHER question, only the cross-tab", () => {
+    // The cross-tab is defined over options and nothing else; the
+    // serializer refuses any other grouping alongside a stack question.
+    expect(values(OPTION, { stack_by: "option", stack_question: 9 })).toEqual([
+      "option",
+    ]);
+  });
+
+  test("a cross-form stack pins the grouping to the site", () => {
+    // The join keys on the registration datapoint, which is only a key
+    // under parent_id. Missing this snapped a working cross-form widget
+    // to `option` and the serializer refused the config that followed.
+    expect(
+      values(OPTION, {
+        stack_by: "option",
+        stack_question: 9,
+        stack_form: 6001,
+      })
+    ).toEqual(["parent_id"]);
+  });
+
+  test("it pins the grouping whatever the measured question is", () => {
+    expect(values(NUMBER, { stack_by: "option", stack_form: 6001 })).toEqual([
+      "parent_id",
+    ]);
+  });
+
+  test("a number question never offers option", () => {
+    // It collapses to a single Total bar rather than erroring — the
+    // quiet kind of wrong.
+    expect(values(NUMBER, {})).toEqual(["month", "date", "parent_id"]);
+  });
+
+  test("a number question stacked by site narrows to time", () => {
+    expect(values(NUMBER, { stack_by: "parent_id" })).toEqual([
+      "month",
+      "date",
+    ]);
+  });
+
+  test("no question counts submissions, so option is meaningless", () => {
+    expect(values(null, {})).toEqual(["month", "date", "parent_id"]);
+    expect(values(DATE, {})).toEqual(["month", "date", "parent_id"]);
+  });
+
+  test("the option entry does not read like Stack by's", () => {
+    // They sat one above the other in the panel, both saying "Option
+    // value", meaning bars in one and segments in the other.
+    const [own] = groupByOptions(OPTION, {});
+    expect(own.label).toBe("This question's options");
+    expect(VALID_STACK_BY.map((s) => s.label)).toContain("Option value");
+  });
+});
+
+describe("withValidGroupBy", () => {
+  test("keeps a grouping the new question still draws", () => {
+    const config = { group_by: "month" };
+    expect(
+      withValidGroupBy(config, groupByOptions({ type: "number" }, {}))
+    ).toBe(config);
+  });
+
+  test("snaps a stranded grouping to the first that draws", () => {
+    // option -> number strands group_by=option, which would draw one
+    // "Total" bar instead of erroring.
+    const next = withValidGroupBy(
+      { group_by: "option" },
+      groupByOptions({ type: "number" }, {})
+    );
+    expect(next.group_by).toBe("month");
+  });
+
+  test("treats an absent grouping as the default", () => {
+    const next = withValidGroupBy({}, groupByOptions({ type: "number" }, {}));
+    expect(next.group_by).toBe("month");
   });
 });

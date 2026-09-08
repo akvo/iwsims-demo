@@ -11,7 +11,6 @@ import {
   NEEDS_VALUE_TYPE,
   NEEDS_REPEAT_AGG,
   NEEDS_COLOR,
-  VALID_GROUP_BY,
   VALID_VALUE_TYPE,
   VALID_REPEAT_AGG,
   VALID_ORIENTATION,
@@ -29,6 +28,8 @@ import {
   withValidStack,
   stackValueOf,
   stackChangeOf,
+  groupByOptions,
+  withValidGroupBy,
   tableColumnOptions,
   monitoringForms,
 } from "./builderConstants";
@@ -314,6 +315,25 @@ const BuilderInspector = ({
   ).filter((s) => wType === "bar" || !String(s.value).startsWith("q:"));
   // Cross-form joins per site, so the grouping is derived, not chosen.
   const stackIsCrossForm = Boolean(wConfig.stack_form);
+
+  // Which groupings draw at all, given the question and the stack.
+  const groupChoices = groupByOptions(selectedQuestion, wConfig);
+  // Hidden when there was never a choice to make — an unstacked option
+  // question has exactly one way to draw, and a control with one entry
+  // teaches nothing. Distinct from the cross-form case below, which
+  // DISABLES rather than hides: there a choice was taken away by
+  // something the author did, and that needs saying.
+  //
+  // Still shown when the stored value is not among the valid ones, so a
+  // widget saved with a grouping that draws nothing stays repairable —
+  // one click, and then it hides.
+  const groupByIsForced =
+    // A cross-form stack keeps its control visible and disabled instead:
+    // there the author's own choice fixed the grouping, and that has a
+    // cause worth stating. Hiding is for when there was never a choice.
+    !stackIsCrossForm &&
+    groupChoices.length <= 1 &&
+    groupChoices.some((g) => g.value === (wConfig.group_by || "option"));
   // Everything a cross-form stack needs is in place EXCEPT a single-choice
   // measured question. Without saying so the entries simply are not there,
   // which reads as the feature being missing rather than unavailable —
@@ -528,15 +548,26 @@ const BuilderInspector = ({
                   // or a stack question that just became the measured
                   // one. A stranded value is a guaranteed 400, not a
                   // cosmetic slip.
+                  //
+                  // The grouping is snapped FIRST: an option question
+                  // swapped for a number one strands group_by=option,
+                  // which draws one "Total" bar rather than erroring.
+                  // The stack is then validated against the grouping
+                  // that survived, not the one being replaced.
+                  const nextQuestion = allQuestions.find((q) => q.id === val);
+                  const grouped = withValidGroupBy(
+                    widget.config,
+                    groupByOptions(nextQuestion, wConfig)
+                  );
                   onWidgetChange({
                     ...widget,
                     question: val || null,
                     config: withValidStack(
-                      widget.config,
+                      grouped,
                       stackByOptions(
                         allQuestions,
                         val,
-                        wConfig.group_by || "option",
+                        grouped.group_by || "option",
                         wType === "bar" ? forms : [],
                         widget.form
                       )
@@ -614,7 +645,7 @@ const BuilderInspector = ({
         )}
 
         {/* Group by */}
-        {NEEDS_GROUP_BY.has(wType) && (
+        {NEEDS_GROUP_BY.has(wType) && !groupByIsForced && (
           <div className="builder-inspector-field">
             <label className="builder-inspector-label">Group by</label>
             <Select
@@ -645,7 +676,7 @@ const BuilderInspector = ({
               // the grouping is fixed will assume the control is broken.
               disabled={stackIsCrossForm}
             >
-              {VALID_GROUP_BY.map((g) => (
+              {groupChoices.map((g) => (
                 <Select.Option key={g.value} value={g.value}>
                   {g.label}
                 </Select.Option>
@@ -670,29 +701,59 @@ const BuilderInspector = ({
                 // Every field in ONE update. Two updateConfig calls would
                 // each close over the same `widget`, so the second would
                 // write the first's field back to its stale value.
+                //
+                // The stack decides what the bars may be, so the grouping
+                // is snapped against the stack that just arrived: adding a
+                // self-stack rules out grouping by the same options, and
+                // removing one rules everything else back out.
+                const stacked = {
+                  ...widget.config,
+                  ...stackChangeOf(val, wConfig.group_by || "option"),
+                };
                 onWidgetChange({
                   ...widget,
-                  config: {
-                    ...widget.config,
-                    ...stackChangeOf(val, wConfig.group_by || "option"),
-                  },
+                  config: withValidGroupBy(
+                    stacked,
+                    groupByOptions(selectedQuestion, stacked)
+                  ),
                 });
               }}
               style={{ width: "100%" }}
               disabled={stackChoices.length <= 1}
+              optionLabelProp="label"
             >
               {stackChoices.map((s) =>
                 s.options ? (
                   <Select.OptGroup key={s.label} label={s.label}>
                     {s.options.map((o) => (
-                      <Select.Option key={o.value} value={o.value}>
-                        {o.label}
+                      <Select.Option
+                        key={o.value}
+                        value={o.value}
+                        label={<QuestionLabel label={o.label} type={o.type} />}
+                      >
+                        <QuestionLabel label={o.label} type={o.type} />
                       </Select.Option>
                     ))}
                   </Select.OptGroup>
                 ) : (
-                  <Select.Option key={s.value} value={s.value}>
-                    {s.label}
+                  <Select.Option
+                    key={s.value}
+                    value={s.value}
+                    label={
+                      s.type ? (
+                        <QuestionLabel label={s.label} type={s.type} />
+                      ) : (
+                        s.label
+                      )
+                    }
+                  >
+                    {/* A question entry carries its type; the three fixed
+                        choices do not, and must not grow a stray icon. */}
+                    {s.type ? (
+                      <QuestionLabel label={s.label} type={s.type} />
+                    ) : (
+                      s.label
+                    )}
                   </Select.Option>
                 )
               )}

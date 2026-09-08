@@ -124,7 +124,10 @@ export const WIDGET_DEFAULTS = {
 };
 
 export const VALID_GROUP_BY = [
-  { value: "option", label: "Option value" },
+  // "This question's options", not "Option value": Stack by carries an
+  // entry with that exact label meaning something else — segments rather
+  // than bars — and the two sat one above the other in the panel.
+  { value: "option", label: "This question's options" },
   { value: "month", label: "Month" },
   { value: "date", label: "Date" },
   { value: "parent_id", label: "Registration site" },
@@ -158,6 +161,13 @@ export const VALID_STACK_BY = [
  * too, so the picker and the serializer agree.
  */
 export const STACK_QUESTION_TYPES = new Set(["option", "multiple_option"]);
+
+// Types whose grouping differs from the plain count of submissions.
+export const SUPPORTED_GROUP_QUESTION_TYPES = new Set([
+  "option",
+  "multiple_option",
+  "number",
+]);
 
 /**
  * The "Stack by" choices that actually compute, given the rest of the
@@ -225,6 +235,7 @@ export const stackByOptions = (
           .map((q) => ({
             value: `f:${f.id}:${q.id}`,
             label: q.label || q.name,
+            type: q.type,
           })),
       }))
       .filter((g) => g.options.length > 0);
@@ -244,8 +255,87 @@ export const stackByOptions = (
       .filter(
         (q) => STACK_QUESTION_TYPES.has(q.type) && q.id !== widgetQuestionId
       )
-      .map((q) => ({ value: `q:${q.id}`, label: q.label || q.name })),
+      .map((q) => ({
+        value: `q:${q.id}`,
+        label: q.label || q.name,
+        type: q.type,
+      })),
   ];
+};
+
+/**
+ * The `group_by` values that actually draw, for this question and stack.
+ *
+ * Measured against the compute layer rather than assumed, because the
+ * control offered four choices and — for the most common widget on the
+ * board, an unstacked option question — exactly one of them returned any
+ * rows. The other three drew an empty chart and said nothing, which is
+ * the same defect the Stack by list had.
+ *
+ *   - No question, or a date question: the request is a count of
+ *     submissions, which can be bucketed by time or by site. `option`
+ *     collapses to a single "Total" bar.
+ *   - An option question, unstacked: only its own options. Grouping by
+ *     month or site returns nothing at all — the compute layer has no
+ *     branch for it.
+ *   - An option question, stacked: all four, because the stack handlers
+ *     cover every grouping.
+ *   - A number question: bucketed by time or by site; `option` is
+ *     meaningless and collapses to one bar. Stacked by site it narrows
+ *     to time, which is the only shape handle_stack_by_parent draws.
+ */
+export const groupByOptions = (question = null, config = {}) => {
+  const by = (...values) =>
+    VALID_GROUP_BY.filter((g) => values.includes(g.value));
+  const stackBy = config?.stack_by;
+  const stackQuestion = config?.stack_question;
+
+  // A cross-form stack joins two responses on the registration datapoint,
+  // which is only a key under parent_id. Checked before the question type
+  // because it holds whatever the question is — and checked FIRST because
+  // omitting it snapped a working cross-form widget's grouping to
+  // `option`, which the serializer then refused.
+  if (config?.stack_form) {
+    return by("parent_id");
+  }
+
+  if (!question || !SUPPORTED_GROUP_QUESTION_TYPES.has(question.type)) {
+    return by("month", "date", "parent_id");
+  }
+  if (question.type === "number") {
+    return stackBy === "parent_id"
+      ? by("month", "date")
+      : by("month", "date", "parent_id");
+  }
+
+  // option / multiple_option, where the stack decides what the bars can
+  // be:
+  //
+  //   no stack           its own options, and nothing else draws at all
+  //   another question   a cross-tab, which is defined only over options
+  //   itself             the bars must be something ELSE — a question
+  //                      crossed with itself is a diagonal, one segment
+  //                      per bar, and the backend declines to draw it
+  if (!stackBy) {
+    return by("option");
+  }
+  return stackQuestion ? by("option") : by("month", "date", "parent_id");
+};
+
+/**
+ * The same config with a grouping the new question cannot draw replaced.
+ *
+ * Switching an option question for a number one strands `group_by=option`,
+ * which draws a single "Total" bar rather than erroring — the quiet kind
+ * of wrong. Snapping to the first valid value keeps the chart honest
+ * without asking the author to notice.
+ */
+export const withValidGroupBy = (config, choices) => {
+  const current = config?.group_by || "option";
+  if (choices.some((c) => c.value === current)) {
+    return config;
+  }
+  return { ...config, group_by: choices[0]?.value || null };
 };
 
 /**
