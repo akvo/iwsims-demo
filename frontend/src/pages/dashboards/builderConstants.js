@@ -82,6 +82,7 @@ export const WIDGET_DEFAULTS = {
     config: {
       group_by: "month",
       date_question_id: null,
+      category_question_id: null,
       color_scheme: "categorical",
       chart_colors: DEFAULT_CHART_COLORS,
     },
@@ -258,6 +259,7 @@ export const NEEDS_MEASURE = new Set([
 ]);
 export const NEEDS_SCATTER_Y = new Set(["scatter"]);
 export const NEEDS_LINE_DATE_X = new Set(["line"]);
+export const NEEDS_LINE_CATEGORY = new Set(["line"]);
 
 /**
  * The measure a widget should carry for the form it is bound to, or null.

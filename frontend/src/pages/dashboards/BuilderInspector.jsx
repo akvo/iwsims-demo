@@ -25,6 +25,7 @@ import {
   TYPE_LABELS,
   NEEDS_SCATTER_Y,
   NEEDS_LINE_DATE_X,
+  NEEDS_LINE_CATEGORY,
   defaultMeasure,
   pruneConfigForForm,
   tableColumnOptions,
@@ -264,7 +265,13 @@ const BuilderInspector = ({
       ? allQuestions.filter((q) => q.type === "number")
       : allQuestions;
   const dateQuestions = allQuestions.filter((q) => q.type === "date");
+  const optionQuestions = allQuestions.filter(
+    (q) => q.type === "option" || q.type === "multiple_option"
+  );
   const selectedQuestion = allQuestions.find((q) => q.id === widget.question);
+  const selectedCategoryQuestion = allQuestions.find(
+    (q) => q.id === wConfig.category_question_id
+  );
   const hasOptionQuestion =
     selectedQuestion?.type === "option" ||
     selectedQuestion?.type === "multiple_option";
@@ -375,6 +382,7 @@ const BuilderInspector = ({
                 }
                 if (wType === "line") {
                   nextConfig.date_question_id = null;
+                  nextConfig.category_question_id = null;
                 }
                 onWidgetChange({
                   ...widget,
@@ -572,6 +580,60 @@ const BuilderInspector = ({
                 Default: groups by submission date
               </div>
             )}
+          </div>
+        )}
+
+        {/* Line category (option question → multiple lines) */}
+        {NEEDS_LINE_CATEGORY.has(wType) && widget.form && (
+          <div className="builder-inspector-field">
+            <label className="builder-inspector-label">
+              Category (option question)
+            </label>
+            <Select
+              value={wConfig.category_question_id || null}
+              onChange={(val) => {
+                if (val) {
+                  const q = allQuestions.find((qq) => qq.id === val);
+                  const sc =
+                    COLOR_SCHEMES[wConfig.color_scheme || DEFAULT_COLOR_SCHEME];
+                  const auto = {};
+                  (q?.options || []).forEach((opt, idx) => {
+                    auto[opt.label] = sc.colors[idx % sc.colors.length];
+                  });
+                  onWidgetChange({
+                    ...widget,
+                    config: {
+                      ...widget.config,
+                      category_question_id: val,
+                      category_colors: auto,
+                    },
+                  });
+                } else {
+                  onWidgetChange({
+                    ...widget,
+                    config: {
+                      ...widget.config,
+                      category_question_id: null,
+                      category_colors: null,
+                    },
+                  });
+                }
+              }}
+              placeholder="None (single line)"
+              style={{ width: "100%" }}
+              allowClear
+              optionLabelProp="label"
+            >
+              {optionQuestions.map((q) => (
+                <Select.Option
+                  key={q.id}
+                  value={q.id}
+                  label={<QuestionLabel label={q.label} type={q.type} />}
+                >
+                  <QuestionLabel label={q.label} type={q.type} />
+                </Select.Option>
+              ))}
+            </Select>
           </div>
         )}
 
@@ -911,6 +973,19 @@ const BuilderInspector = ({
                       });
                       next.status_colors = auto;
                     }
+                    if (wType === "line" && wConfig.category_question_id) {
+                      const catQ = allQuestions.find(
+                        (q) => q.id === wConfig.category_question_id
+                      );
+                      if (catQ) {
+                        const auto = {};
+                        (catQ.options || []).forEach((opt, idx) => {
+                          auto[opt.label] =
+                            scheme.colors[idx % scheme.colors.length];
+                        });
+                        next.category_colors = auto;
+                      }
+                    }
                     onWidgetChange({ ...widget, config: next });
                   }}
                 >
@@ -925,6 +1000,37 @@ const BuilderInspector = ({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Line category colours */}
+        {wType === "line" && selectedCategoryQuestion && (
+          <div className="builder-inspector-field">
+            <label className="builder-inspector-label">Category colours</label>
+            {(selectedCategoryQuestion.options || []).map((opt, idx) => {
+              const overrides = wConfig.category_colors || {};
+              const scheme =
+                COLOR_SCHEMES[wConfig.color_scheme || DEFAULT_COLOR_SCHEME];
+              const defaultColor = scheme.colors[idx % scheme.colors.length];
+              return (
+                <div
+                  key={opt.value}
+                  className="builder-inspector-status-color-row"
+                >
+                  <span>{opt.label}</span>
+                  <input
+                    type="color"
+                    value={overrides[opt.label] || defaultColor}
+                    onChange={(e) => {
+                      updateConfig("category_colors", {
+                        ...overrides,
+                        [opt.label]: e.target.value,
+                      });
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
 
