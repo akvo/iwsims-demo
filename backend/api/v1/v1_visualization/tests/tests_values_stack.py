@@ -1,5 +1,9 @@
+from datetime import datetime
+
 from django.test.utils import override_settings
 from rest_framework.test import APITestCase
+
+from api.v1.v1_data.models import FormData
 from api.v1.v1_visualization.tests.mixins import (
     VisualizationValuesTestMixin,
 )
@@ -572,3 +576,99 @@ class ValuesStackByQuestionTestCases(
             monitoring="all",
         )
         self.assertEqual(explicit, implicit)
+
+
+@override_settings(USE_TZ=False, TEST_ENV=True)
+class PendingParentExclusionTestCases(
+    VisualizationValuesTestMixin, APITestCase
+):
+    """D-3 / S-7: an unapproved registration is not a site.
+
+    `measure=current_state` filters its parents itself. The
+    `all_submissions` path derives them from the children instead and
+    used to take whatever the foreign key pointed at, so a registration
+    still awaiting approval — with an approved monitoring submission —
+    was drawn under one measure and absent under the other. Same site,
+    same dashboard, two answers.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pending_reg = FormData.objects.create(
+            id=7300,
+            name="Site Pending",
+            form=self.registration,
+            administration=self.adm_parent,
+            created_by=self.user,
+            is_pending=True,
+        )
+        self._create_monitoring(
+            parent=self.pending_reg,
+            created_date=datetime(2025, 1, 25),
+            number_val=50.0,
+            option_val="active",
+            multi_vals=["feature_x"],
+            date_val="2025-01-25T00:00:00.000Z",
+        )
+        self.draft_reg = FormData.objects.create(
+            id=7301,
+            name="Site Draft",
+            form=self.registration,
+            administration=self.adm_parent,
+            created_by=self.user,
+            is_draft=True,
+        )
+        self._create_monitoring(
+            parent=self.draft_reg,
+            created_date=datetime(2025, 1, 26),
+            number_val=60.0,
+            option_val="active",
+            multi_vals=["feature_y"],
+            date_val="2025-01-26T00:00:00.000Z",
+        )
+
+    def get(self, query):
+        response = self.client.get(f"{self.BASE_URL}?{query}")
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def test_stacked_bars_exclude_unapproved_parents(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&group_by=parent_id&stack_by=option&monitoring=all"
+        )
+        self.assertNotIn("Site Pending", data["labels"])
+        self.assertNotIn("Site Draft", data["labels"])
+        self.assertCountEqual(
+            data["labels"], ["Site Alpha", "Site Beta"],
+        )
+
+    def test_both_measures_agree_on_which_sites_exist(self):
+        params = (
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&group_by=parent_id&stack_by=option"
+        )
+        latest = self.get(f"{params}&monitoring=latest")
+        every = self.get(f"{params}&monitoring=all")
+        self.assertCountEqual(latest["labels"], every["labels"])
+
+    def test_multiline_stacks_exclude_unapproved_parents(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_NUMBER_ID}"
+            "&group_by=month&stack_by=parent_id&monitoring=all"
+        )
+        self.assertNotIn("Site Pending", data["stack_labels"])
+        self.assertNotIn("Site Draft", data["stack_labels"])
+
+    def test_approved_parents_are_untouched(self):
+        data = self.get(
+            f"form_id={self.monitoring.id}"
+            f"&question_id={self.Q_OPTION_ID}"
+            "&group_by=parent_id&stack_by=option&monitoring=all"
+        )
+        rows = {row["label"]: row for row in data["data"]}
+        # Site Alpha over both its submissions: active twice.
+        self.assertEqual(rows["Site Alpha"]["Active"], 2)
